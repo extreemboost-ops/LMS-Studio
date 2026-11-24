@@ -11,9 +11,12 @@
     "format": "oxfmt",
     "server:dev": "node ./node_modules/tsx/dist/cli.mjs server/src/server.ts",
     "server:build": "node ./node_modules/typescript/bin/tsc --project server/tsconfig.json",
+    "server:start": "node dist-server/server.js",
     "server:test": "node ./node_modules/tsx/dist/cli.mjs server/tests/run-tests.ts",
     "db:generate": "node ./node_modules/prisma/build/index.js generate",
-    "db:validate": "node ./node_modules/prisma/build/index.js validate"
+    "db:validate": "node ./node_modules/prisma/build/index.js validate",
+    "render-build": "npm run db:generate && npm run server:build",
+    "render-start": "node dist-server/server.js"
   },
   "dependencies": {
     "@node-rs/argon2": "^2.2.2",

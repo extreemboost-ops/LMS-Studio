@@ -55,7 +55,7 @@ export class AnalyticsService {
 
   static async exportCsvReport(): Promise<void> {
     try {
-      window.open("/api/v1/analytics/export/csv", "_blank");
+      window.open(`${ApiClient.getBaseUrl()}/analytics/export/csv`, "_blank");
     } catch {
       // Fallback
     }

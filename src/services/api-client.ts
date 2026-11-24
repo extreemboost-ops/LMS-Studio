@@ -19,7 +19,13 @@ export interface ApiError {
 export class ApiClient {
   private static token: string | null = null;
   private static organizationId: string | null = null;
-  private static baseUrl = "/api/v1";
+  private static baseUrl = (import.meta.env?.VITE_API_URL
+    ? `${import.meta.env.VITE_API_URL.replace(/\/$/, "")}/api/v1`
+    : "/api/v1");
+
+  static getBaseUrl(): string {
+    return this.baseUrl;
+  }
 
   static setToken(token: string | null): void {
     this.token = token;
