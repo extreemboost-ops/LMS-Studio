@@ -1,0 +1,10 @@
+{
+  "description": "Create, edit, preview, and export interactive H5P and SCORM learning content for educators, instructional designers, and training teams.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}

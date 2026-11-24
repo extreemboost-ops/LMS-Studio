@@ -1,0 +1,1226 @@
+// ==============================================================================
+// SCORM & H5P Authoring Studio — Enterprise Multi-Tenant Prisma Schema
+// Database Engine: PostgreSQL 16+
+// ORM: Prisma ORM (v7 Compatible)
+// ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ------------------------------------------------------------------------------
+// ENUMS
+// ------------------------------------------------------------------------------
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProjectContentType {
+  PRESENTATION
+  INTERACTIVE_VIDEO
+  INTERACTIVE_BOOK
+  QUESTION_SET
+  MULTI_CHOICE
+  DRAG_DROP
+  FILL_BLANKS
+  TRUE_FALSE
+  FLASHCARDS
+  IMAGE_HOTSPOTS
+}
+
+enum ProjectStatus {
+  DRAFT
+  REVIEW
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ElementType {
+  CHAPTER
+  SLIDE
+  QUESTION
+  HOTSPOT
+  MEDIA
+  INTERACTION
+}
+
+enum H5PDependencyType {
+  PRELOADED
+  DYNAMIC
+  EDITOR
+}
+
+enum H5PEmbedType {
+  DIV
+  IFRAME
+}
+
+enum AssetType {
+  IMAGE
+  VIDEO
+  AUDIO
+  DOCUMENT
+}
+
+enum SCORMStandard {
+  SCORM_12
+  SCORM_2004_3RD_EDITION
+  SCORM_2004_4TH_EDITION
+}
+
+enum JobStatus {
+  QUEUED
+  VALIDATING
+  PROCESSING
+  PACKAGING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum LaunchBehavior {
+  NEW_WINDOW
+  LMS_FRAME
+}
+
+enum CompletionCriteria {
+  SLIDES_VIEWED
+  QUIZ_PASSED
+  BOTH
+  INTERACTIONS_COMPLETE
+}
+
+enum TrackingMode {
+  SCORE_AND_STATUS
+  STATUS_ONLY
+}
+
+enum LMSPlatformCode {
+  MOODLE
+  CANVAS
+  BLACKBOARD
+  DOCEBO
+  BRIGHTSPACE
+  CUSTOM
+}
+
+enum LMSAuthType {
+  OAUTH2
+  LTI_13
+  API_KEY
+}
+
+enum LMSConnectionStatus {
+  CONNECTED
+  DISCONNECTED
+  DEGRADED
+  ERROR
+}
+
+enum LMSHealthStatus {
+  HEALTHY
+  WARNING
+  DOWN
+}
+
+enum LMSDeploymentStatus {
+  ACTIVE
+  ARCHIVED
+  SYNC_PENDING
+}
+
+enum EnrollmentStatus {
+  ENROLLED
+  IN_PROGRESS
+  COMPLETED
+  DROPPED
+}
+
+enum AttemptStatus {
+  NOT_ATTEMPTED
+  INCOMPLETE
+  COMPLETED
+  PASSED
+  FAILED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  CRITICAL
+}
+
+enum NotificationType {
+  INFO
+  SUCCESS
+  WARNING
+  ERROR
+}
+
+// ==============================================================================
+// 1. AUTHENTICATION & MULTI-TENANCY
+// ==============================================================================
+
+model Organization {
+  id                String   @id @default(uuid()) @db.Uuid
+  slug              String   @unique @db.VarChar(100)
+  name              String   @db.VarChar(255)
+  plan              String   @default("business") @db.VarChar(50)
+  storageQuotaBytes BigInt   @default(107374182400) // 100 GB default
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  members           OrganizationMember[]
+  workspaces        Workspace[]
+  roles             Role[]
+  courses           Course[]
+  contentProjects   ContentProject[]
+  mediaAssets       MediaAsset[]
+  mediaFolders      MediaFolder[]
+  scormPackages     SCORMPackage[]
+  lmsConnections    LMSConnection[]
+  learners          Learner[]
+  learningAttempts  LearningAttempt[]
+  backgroundJobs    BackgroundJob[]
+  auditLogs         AuditLog[]
+  storageUsages     StorageUsage[]
+  h5pPackageImports H5PPackageImport[]
+  invitations       OrganizationInvitation[]
+
+  @@map("organizations")
+}
+
+model User {
+  id              String    @id @default(uuid()) @db.Uuid
+  email           String    @unique @db.VarChar(255)
+  passwordHash    String?   @map("password_hash") @db.VarChar(255)
+  firstName       String    @map("first_name") @db.VarChar(100)
+  lastName        String    @map("last_name") @db.VarChar(100)
+  avatarUrl       String?   @map("avatar_url") @db.VarChar(512)
+  isSuperAdmin    Boolean   @default(false) @map("is_super_admin")
+  isEmailVerified Boolean   @default(false) @map("is_email_verified")
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  memberships             OrganizationMember[]
+  refreshTokens           UserRefreshToken[]
+  passwordResetTokens     PasswordResetToken[]
+  emailVerificationTokens EmailVerificationToken[]
+  sentInvitations         OrganizationInvitation[] @relation("InvitedByUser")
+  authoredCourses         Course[]                 @relation("CourseCreator")
+  authoredProjects        ContentProject[]         @relation("ProjectCreator")
+  authoredRevisions       ContentRevision[]        @relation("RevisionAuthor")
+  createdVersions         ContentVersion[]         @relation("VersionCreator")
+  createdPackages         SCORMPackage[]           @relation("PackageCreator")
+  uploadedAssets          MediaAsset[]             @relation("AssetUploader")
+  importedH5Ps            H5PPackageImport[]       @relation("ImportUploader")
+  notifications           Notification[]
+  auditLogs               AuditLog[]
+
+  @@map("users")
+}
+
+model OrganizationMember {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  userId         String           @map("user_id") @db.Uuid
+  roleId         String           @map("role_id") @db.Uuid
+  status         MembershipStatus @default(ACTIVE)
+  joinedAt       DateTime         @default(now()) @map("joined_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@unique([organizationId, userId])
+  @@index([organizationId, status])
+  @@map("organization_members")
+}
+
+model Role {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String?  @map("organization_id") @db.Uuid // null = system global role
+  name           String   @db.VarChar(100)
+  description    String?  @db.VarChar(255)
+  isSystem       Boolean  @default(false) @map("is_system")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization?        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  members      OrganizationMember[]
+  permissions  RolePermission[]
+  invitations  OrganizationInvitation[]
+
+  @@unique([organizationId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String  @id @default(uuid()) @db.Uuid
+  code        String  @unique @db.VarChar(100) // e.g. "content:write", "scorm:export"
+  name        String  @db.VarChar(100)
+  category    String  @db.VarChar(50)
+  description String? @db.VarChar(255)
+
+  roles RolePermission[]
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       String @map("role_id") @db.Uuid
+  permissionId String @map("permission_id") @db.Uuid
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model Workspace {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String   @db.VarChar(150)
+  slug           String   @db.VarChar(150)
+  description    String?  @db.VarChar(500)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization    Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courses         Course[]
+  contentProjects ContentProject[]
+  mediaAssets     MediaAsset[]
+  mediaFolders    MediaFolder[]
+  lmsConnections  LMSConnection[]
+  scormPackages   SCORMPackage[]
+  h5pImports      H5PPackageImport[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("workspaces")
+}
+
+model OrganizationInvitation {
+  id             String           @id @default(uuid()) @db.Uuid
+  organizationId String           @map("organization_id") @db.Uuid
+  email          String           @db.VarChar(255)
+  roleId         String           @map("role_id") @db.Uuid
+  invitedById    String           @map("invited_by_id") @db.Uuid
+  tokenHash      String           @unique @map("token_hash") @db.VarChar(255)
+  status         MembershipStatus @default(INVITED)
+  expiresAt      DateTime         @map("expires_at")
+  createdAt      DateTime         @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  role         Role         @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  invitedBy    User         @relation("InvitedByUser", fields: [invitedById], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@index([organizationId, status])
+  @@map("organization_invitations")
+}
+
+model UserRefreshToken {
+  id                  String   @id @default(uuid()) @db.Uuid
+  userId              String   @map("user_id") @db.Uuid
+  tokenHash           String   @unique @map("token_hash") @db.VarChar(255)
+  family              String   @db.Uuid
+  isRevoked           Boolean  @default(false) @map("is_revoked")
+  replacedByTokenHash String?  @map("replaced_by_token_hash") @db.VarChar(255)
+  userAgent           String?  @map("user_agent") @db.VarChar(512)
+  ipAddress           String?  @map("ip_address") @db.VarChar(45)
+  expiresAt           DateTime @map("expires_at")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRevoked])
+  @@index([family])
+  @@map("user_refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(255)
+  isUsed    Boolean  @default(false) @map("is_used")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isUsed])
+  @@map("password_reset_tokens")
+}
+
+model EmailVerificationToken {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  tokenHash String   @unique @map("token_hash") @db.VarChar(255)
+  isUsed    Boolean  @default(false) @map("is_used")
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isUsed])
+  @@map("email_verification_tokens")
+}
+
+// ==============================================================================
+// 2. COURSES & CONTENT AUTHORING
+// ==============================================================================
+
+model Course {
+  id              String       @id @default(uuid()) @db.Uuid
+  organizationId  String       @map("organization_id") @db.Uuid
+  workspaceId     String       @map("workspace_id") @db.Uuid
+  title           String       @db.VarChar(255)
+  code            String       @db.VarChar(50) // e.g. "COURSE 01"
+  description     String?      @db.Text
+  coverImage      String?      @map("cover_image") @db.VarChar(512)
+  coverColorIndex Int          @default(0) @map("cover_color_index")
+  status          CourseStatus @default(DRAFT)
+  version         Int          @default(1)
+  createdById     String       @map("created_by_id") @db.Uuid
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace      Workspace       @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy      User            @relation("CourseCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  modules        CourseModule[]
+  enrollments    Enrollment[]
+  lmsDeployments LMSDeployment[]
+
+  @@index([organizationId, workspaceId])
+  @@index([status])
+  @@map("courses")
+}
+
+model CourseModule {
+  id          String   @id @default(uuid()) @db.Uuid
+  courseId    String   @map("course_id") @db.Uuid
+  title       String   @db.VarChar(255)
+  description String?  @db.Text
+  orderIndex  Int      @default(0) @map("order_index")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId, orderIndex])
+  @@map("course_modules")
+}
+
+model Lesson {
+  id               String   @id @default(uuid()) @db.Uuid
+  moduleId         String   @map("module_id") @db.Uuid
+  contentProjectId String?  @map("content_project_id") @db.Uuid
+  title            String   @db.VarChar(255)
+  description      String?  @db.Text
+  orderIndex       Int      @default(0) @map("order_index")
+  contentType      String   @map("content_type") @db.VarChar(50)
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  module         CourseModule    @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  contentProject ContentProject? @relation(fields: [contentProjectId], references: [id], onDelete: SetNull)
+
+  @@index([moduleId, orderIndex])
+  @@index([contentProjectId])
+  @@map("lessons")
+}
+
+model ContentProject {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @map("organization_id") @db.Uuid
+  workspaceId          String             @map("workspace_id") @db.Uuid
+  title                String             @db.VarChar(255)
+  description          String?            @db.Text
+  contentType          ProjectContentType @map("content_type")
+  status               ProjectStatus      @default(DRAFT)
+  thumbnailUrl         String?            @map("thumbnail_url") @db.VarChar(512)
+  themeVariant         String             @default("safety") @map("theme_variant") @db.VarChar(50)
+  currentVersionNumber Int                @default(1) @map("current_version_number")
+  createdById          String             @map("created_by_id") @db.Uuid
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ProjectCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  lessons           Lesson[]
+  documents         ContentDocument[]
+  versions          ContentVersion[]
+  elements          ContentElement[]
+  revisions         ContentRevision[]
+  h5pContent        H5PContent?
+  scormPackages     SCORMPackage[]
+  mediaUsages       MediaUsage[]
+  learnerAttempts   LearningAttempt[]
+  learnerProgresses LearnerProgress[]
+  lmsDeployments    LMSDeployment[]
+
+  @@unique([organizationId, id])
+  @@index([organizationId, workspaceId])
+  @@index([status, contentType])
+  @@map("content_projects")
+}
+
+model ContentDocument {
+  id               String   @id @default(uuid()) @db.Uuid
+  contentProjectId String   @map("content_project_id") @db.Uuid
+  versionNumber    Int      @default(1) @map("version_number")
+  isPublished      Boolean  @default(false) @map("is_published")
+  metadata         Json     @default("{}") @db.JsonB
+  settings         Json     @default("{}") @db.JsonB
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  project  ContentProject   @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  elements ContentElement[]
+
+  @@unique([contentProjectId, versionNumber])
+  @@index([contentProjectId, isPublished])
+  @@map("content_documents")
+}
+
+model ContentVersion {
+  id               String   @id @default(uuid()) @db.Uuid
+  contentProjectId String   @map("content_project_id") @db.Uuid
+  versionNumber    Int      @map("version_number")
+  title            String   @db.VarChar(255)
+  description      String?  @db.Text
+  snapshotPayload  Json     @map("snapshot_payload") @db.JsonB
+  h5pLibraryId     String?  @map("h5p_library_id") @db.Uuid
+  createdById      String   @map("created_by_id") @db.Uuid
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  project         ContentProject     @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  h5pLibrary      H5PLibrary?        @relation(fields: [h5pLibraryId], references: [id], onDelete: SetNull)
+  createdBy       User               @relation("VersionCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  scormPackages   SCORMPackage[]
+  h5pExports      H5PPackageExport[]
+  scormExportJobs SCORMExportJob[]
+
+  @@unique([contentProjectId, versionNumber])
+  @@index([contentProjectId, createdAt])
+  @@index([h5pLibraryId])
+  @@map("content_versions")
+}
+
+model ContentElement {
+  id               String      @id @default(uuid()) @db.Uuid
+  contentProjectId String      @map("content_project_id") @db.Uuid
+  documentId       String?     @map("document_id") @db.Uuid
+  parentId         String?     @map("parent_id") @db.Uuid
+  elementType      ElementType @map("element_type")
+  name             String      @db.VarChar(255)
+  orderIndex       Int         @default(0) @map("order_index")
+  config           Json        @default("{}") @db.JsonB
+  createdAt        DateTime    @default(now()) @map("created_at")
+  updatedAt        DateTime    @updatedAt @map("updated_at")
+
+  project       ContentProject        @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  document      ContentDocument?      @relation(fields: [documentId], references: [id], onDelete: Cascade)
+  parent        ContentElement?       @relation("ElementHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children      ContentElement[]      @relation("ElementHierarchy")
+  mediaUsages   MediaUsage[]
+  scormMappings SCORMContentMapping[]
+
+  @@index([contentProjectId, elementType])
+  @@index([parentId, orderIndex])
+  @@index([documentId])
+  @@map("content_elements")
+}
+
+model ContentRevision {
+  id               String   @id @default(uuid()) @db.Uuid
+  contentProjectId String   @map("content_project_id") @db.Uuid
+  authorId         String   @map("author_id") @db.Uuid
+  revisionNumber   Int      @map("revision_number")
+  diffPayload      Json     @map("diff_payload") @db.JsonB
+  changeSummary    String?  @map("change_summary") @db.VarChar(500)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  project ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  author  User           @relation("RevisionAuthor", fields: [authorId], references: [id], onDelete: Restrict)
+
+  @@index([contentProjectId, revisionNumber])
+  @@map("content_revisions")
+}
+
+// ==============================================================================
+// 3. H5P CORE ENGINE & LIBRARIES
+// ==============================================================================
+
+model H5PContent {
+  id                 String       @id @default(uuid()) @db.Uuid
+  contentProjectId   String       @unique @map("content_project_id") @db.Uuid
+  libraryId          String       @map("library_id") @db.Uuid
+  parameters         Json         @db.JsonB
+  filteredParameters Json?        @map("filtered_parameters") @db.JsonB
+  metadata           Json         @default("{}") @db.JsonB
+  embedType          H5PEmbedType @default(DIV) @map("embed_type")
+  createdAt          DateTime     @default(now()) @map("created_at")
+  updatedAt          DateTime     @updatedAt @map("updated_at")
+
+  project          ContentProject      @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  mainLibrary      H5PLibrary          @relation(fields: [libraryId], references: [id], onDelete: Restrict)
+  contentLibraries H5PContentLibrary[]
+
+  @@index([libraryId])
+  @@map("h5p_contents")
+}
+
+model H5PLibrary {
+  id                  String   @id @default(uuid()) @db.Uuid
+  machineName         String   @map("machine_name") @db.VarChar(127) // e.g. "H5P.InteractiveVideo"
+  title               String   @db.VarChar(255)
+  majorVersion        Int      @map("major_version")
+  minorVersion        Int      @map("minor_version")
+  patchVersion        Int      @map("patch_version")
+  runnable            Boolean  @default(true)
+  fullscreen          Boolean  @default(false)
+  coreApiVersionMajor Int      @default(1) @map("core_api_version_major")
+  coreApiVersionMinor Int      @default(24) @map("core_api_version_minor")
+  preloadedJs         Json?    @default("[]") @map("preloaded_js") @db.JsonB
+  preloadedCss        Json?    @default("[]") @map("preloaded_css") @db.JsonB
+  semantics           Json?    @db.JsonB
+  language            Json?    @db.JsonB
+  tutorialUrl         String?  @map("tutorial_url") @db.VarChar(512)
+  exampleUrl          String?  @map("example_url") @db.VarChar(512)
+  metadataSettings    Json?    @map("metadata_settings") @db.JsonB
+  installedAt         DateTime @default(now()) @map("installed_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  h5pContents     H5PContent[]
+  contentVersions ContentVersion[]
+  requiredBy      H5PLibraryDependency[] @relation("RequiredLibrary")
+  dependencies    H5PLibraryDependency[] @relation("ParentLibrary")
+  contentUsages   H5PContentLibrary[]
+
+  @@unique([machineName, majorVersion, minorVersion])
+  @@index([machineName])
+  @@map("h5p_libraries")
+}
+
+model H5PLibraryDependency {
+  id                String            @id @default(uuid()) @db.Uuid
+  libraryId         String            @map("library_id") @db.Uuid
+  requiredLibraryId String            @map("required_library_id") @db.Uuid
+  dependencyType    H5PDependencyType @map("dependency_type")
+  createdAt         DateTime          @default(now()) @map("created_at")
+
+  library         H5PLibrary @relation("ParentLibrary", fields: [libraryId], references: [id], onDelete: Cascade)
+  requiredLibrary H5PLibrary @relation("RequiredLibrary", fields: [requiredLibraryId], references: [id], onDelete: Restrict)
+
+  @@unique([libraryId, requiredLibraryId, dependencyType])
+  @@index([requiredLibraryId])
+  @@map("h5p_library_dependencies")
+}
+
+model H5PContentLibrary {
+  id             String            @id @default(uuid()) @db.Uuid
+  h5pContentId   String            @map("h5p_content_id") @db.Uuid
+  libraryId      String            @map("library_id") @db.Uuid
+  dependencyType H5PDependencyType @map("dependency_type")
+  dropCss        Boolean           @default(false) @map("drop_css")
+
+  h5pContent H5PContent @relation(fields: [h5pContentId], references: [id], onDelete: Cascade)
+  library    H5PLibrary @relation(fields: [libraryId], references: [id], onDelete: Restrict)
+
+  @@unique([h5pContentId, libraryId])
+  @@index([libraryId])
+  @@map("h5p_content_libraries")
+}
+
+model H5PPackageImport {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  filename         String    @db.VarChar(255)
+  fileSizeBytes    BigInt    @map("file_size_bytes")
+  status           JobStatus @default(QUEUED)
+  validationErrors Json?     @map("validation_errors") @db.JsonB
+  createdById      String    @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  createdBy    User         @relation("ImportUploader", fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([organizationId, status])
+  @@map("h5p_package_imports")
+}
+
+model H5PPackageExport {
+  id               String   @id @default(uuid()) @db.Uuid
+  contentVersionId String   @map("content_version_id") @db.Uuid
+  filename         String   @db.VarChar(255)
+  fileSizeBytes    BigInt   @map("file_size_bytes")
+  checksumSha256   String   @map("checksum_sha256") @db.VarChar(64)
+  storagePath      String   @map("storage_path") @db.VarChar(512)
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  contentVersion ContentVersion @relation(fields: [contentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([contentVersionId])
+  @@map("h5p_package_exports")
+}
+
+// ==============================================================================
+// 4. MEDIA MANAGEMENT
+// ==============================================================================
+
+model MediaAsset {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  workspaceId      String    @map("workspace_id") @db.Uuid
+  folderId         String?   @map("folder_id") @db.Uuid
+  name             String    @db.VarChar(255)
+  originalFilename String    @map("original_filename") @db.VarChar(255)
+  mimeType         String    @map("mime_type") @db.VarChar(127)
+  assetType        AssetType @map("asset_type")
+  fileSizeBytes    BigInt    @map("file_size_bytes")
+  storageKey       String    @map("storage_key") @db.VarChar(512)
+  cdnUrl           String?   @map("cdn_url") @db.VarChar(512)
+  metadata         Json      @default("{}") @db.JsonB
+  createdById      String    @map("created_by_id") @db.Uuid
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  organization  Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  folder        MediaFolder?   @relation(fields: [folderId], references: [id], onDelete: SetNull)
+  createdBy     User           @relation("AssetUploader", fields: [createdById], references: [id], onDelete: Restrict)
+  mediaMetadata MediaMetadata?
+  usages        MediaUsage[]
+
+  @@index([organizationId, assetType])
+  @@index([workspaceId, folderId])
+  @@map("media_assets")
+}
+
+model MediaFolder {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workspaceId    String   @map("workspace_id") @db.Uuid
+  parentId       String?  @map("parent_id") @db.Uuid
+  name           String   @db.VarChar(100)
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  parent       MediaFolder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children     MediaFolder[] @relation("FolderTree")
+  assets       MediaAsset[]
+
+  @@unique([workspaceId, parentId, name])
+  @@index([organizationId])
+  @@map("media_folders")
+}
+
+model MediaMetadata {
+  id              String   @id @default(uuid()) @db.Uuid
+  mediaAssetId    String   @unique @map("media_asset_id") @db.Uuid
+  durationSeconds Int?     @map("duration_seconds")
+  widthPx         Int?     @map("width_px")
+  heightPx        Int?     @map("height_px")
+  codec           String?  @db.VarChar(50)
+  bitrate         Int?
+  thumbnailKey    String?  @map("thumbnail_key") @db.VarChar(512)
+  transcriptJson  Json?    @map("transcript_json") @db.JsonB
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  mediaAsset MediaAsset @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+
+  @@map("media_metadata")
+}
+
+model MediaUsage {
+  id               String   @id @default(uuid()) @db.Uuid
+  mediaAssetId     String   @map("media_asset_id") @db.Uuid
+  contentProjectId String   @map("content_project_id") @db.Uuid
+  elementId        String?  @map("element_id") @db.Uuid
+  usageLocation    String   @map("usage_location") @db.VarChar(100) // e.g. "slide:video:background"
+  createdAt        DateTime @default(now()) @map("created_at")
+
+  mediaAsset     MediaAsset      @relation(fields: [mediaAssetId], references: [id], onDelete: Cascade)
+  contentProject ContentProject  @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  element        ContentElement? @relation(fields: [elementId], references: [id], onDelete: SetNull)
+
+  @@index([mediaAssetId])
+  @@index([contentProjectId])
+  @@index([elementId])
+  @@map("media_usages")
+}
+
+// ==============================================================================
+// 5. SCORM ENGINE & PACKAGING
+// ==============================================================================
+
+model SCORMPackage {
+  id                 String        @id @default(uuid()) @db.Uuid
+  organizationId     String        @map("organization_id") @db.Uuid
+  workspaceId        String        @map("workspace_id") @db.Uuid
+  contentProjectId   String        @map("content_project_id") @db.Uuid
+  contentVersionId   String        @map("content_version_id") @db.Uuid
+  format             SCORMStandard @default(SCORM_2004_4TH_EDITION)
+  packageTitle       String        @map("package_title") @db.VarChar(255)
+  versionString      String        @default("1.0.0") @map("version_string") @db.VarChar(50)
+  manifestIdentifier String        @map("manifest_identifier") @db.VarChar(100)
+  storageKey         String        @map("storage_key") @db.VarChar(512)
+  fileSizeBytes      BigInt        @map("file_size_bytes")
+  checksumSha256     String        @map("checksum_sha256") @db.VarChar(64)
+  launchFile         String        @default("index.html") @map("launch_file") @db.VarChar(100)
+  createdById        String        @map("created_by_id") @db.Uuid
+  createdAt          DateTime      @default(now()) @map("created_at")
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace      Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+  contentVersion ContentVersion @relation(fields: [contentVersionId], references: [id], onDelete: Restrict)
+  createdBy      User           @relation("PackageCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  manifest         SCORMManifest?
+  runtimeConfig    SCORMRuntimeConfiguration?
+  contentMappings  SCORMContentMapping[]
+  exportJobs       SCORMExportJob[]
+  lmsDeployments   LMSDeployment[]
+  learningAttempts LearningAttempt[]
+
+  @@index([organizationId, format])
+  @@index([contentProjectId])
+  @@map("scorm_packages")
+}
+
+model SCORMExportJob {
+  id               String    @id @default(uuid()) @db.Uuid
+  organizationId   String    @map("organization_id") @db.Uuid
+  scormPackageId   String?   @map("scorm_package_id") @db.Uuid
+  contentVersionId String    @map("content_version_id") @db.Uuid
+  status           JobStatus @default(QUEUED)
+  progressPercent  Int       @default(0) @map("progress_percent")
+  errorLog         String?   @map("error_log") @db.Text
+  startedAt        DateTime? @map("started_at")
+  completedAt      DateTime? @map("completed_at")
+  createdAt        DateTime  @default(now()) @map("created_at")
+
+  scormPackage   SCORMPackage?  @relation(fields: [scormPackageId], references: [id], onDelete: SetNull)
+  contentVersion ContentVersion @relation(fields: [contentVersionId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, status])
+  @@map("scorm_export_jobs")
+}
+
+model SCORMManifest {
+  id                String   @id @default(uuid()) @db.Uuid
+  scormPackageId    String   @unique @map("scorm_package_id") @db.Uuid
+  manifestXml       String   @map("manifest_xml") @db.Text
+  organizationsJson Json     @default("[]") @map("organizations_json") @db.JsonB
+  resourcesJson     Json     @default("[]") @map("resources_json") @db.JsonB
+  sequencingJson    Json?    @map("sequencing_json") @db.JsonB // SCORM 2004 sequencing rules
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  scormPackage SCORMPackage @relation(fields: [scormPackageId], references: [id], onDelete: Cascade)
+
+  @@map("scorm_manifests")
+}
+
+model SCORMRuntimeConfiguration {
+  id                    String             @id @default(uuid()) @db.Uuid
+  scormPackageId        String             @unique @map("scorm_package_id") @db.Uuid
+  launchBehavior        LaunchBehavior     @default(NEW_WINDOW) @map("launch_behavior")
+  completionCriteria    CompletionCriteria @default(BOTH) @map("completion_criteria")
+  passingScorePercent   Int                @default(80) @map("passing_score_percent")
+  trackingMode          TrackingMode       @default(SCORE_AND_STATUS) @map("tracking_mode")
+  masteryScoreDecimal   Decimal            @default(0.80) @map("mastery_score_decimal") @db.Decimal(5, 2)
+  timeLimitAction       String?            @default("continue,no message") @map("time_limit_action") @db.VarChar(50)
+  maxTimeAllowedSeconds Int?               @map("max_time_allowed_seconds")
+  createdAt             DateTime           @default(now()) @map("created_at")
+  updatedAt             DateTime           @updatedAt @map("updated_at")
+
+  scormPackage SCORMPackage @relation(fields: [scormPackageId], references: [id], onDelete: Cascade)
+
+  @@map("scorm_runtime_configurations")
+}
+
+model SCORMContentMapping {
+  id                String   @id @default(uuid()) @db.Uuid
+  scormPackageId    String   @map("scorm_package_id") @db.Uuid
+  scoIdentifier     String   @map("sco_identifier") @db.VarChar(100)
+  title             String   @db.VarChar(255)
+  elementId         String?  @map("element_id") @db.Uuid
+  orderIndex        Int      @default(0) @map("order_index")
+  isMasteryRequired Boolean  @default(true) @map("is_mastery_required")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  scormPackage SCORMPackage    @relation(fields: [scormPackageId], references: [id], onDelete: Cascade)
+  element      ContentElement? @relation(fields: [elementId], references: [id], onDelete: SetNull)
+
+  @@unique([scormPackageId, scoIdentifier])
+  @@index([scormPackageId, orderIndex])
+  @@index([elementId])
+  @@map("scorm_content_mappings")
+}
+
+// ==============================================================================
+// 6. LMS INTEGRATIONS
+// ==============================================================================
+
+model LMSPlatform {
+  id               String          @id @default(uuid()) @db.Uuid
+  code             LMSPlatformCode @unique
+  name             String          @db.VarChar(100)
+  logoUrl          String?         @map("logo_url") @db.VarChar(512)
+  documentationUrl String?         @map("documentation_url") @db.VarChar(512)
+
+  connections LMSConnection[]
+
+  @@map("lms_platforms")
+}
+
+model LMSConnection {
+  id                   String              @id @default(uuid()) @db.Uuid
+  organizationId       String              @map("organization_id") @db.Uuid
+  workspaceId          String              @map("workspace_id") @db.Uuid
+  platformId           String              @map("platform_id") @db.Uuid
+  name                 String              @db.VarChar(150)
+  connectionStatus     LMSConnectionStatus @default(DISCONNECTED) @map("connection_status")
+  apiBaseUrl           String?             @map("api_base_url") @db.VarChar(512)
+  authType             LMSAuthType         @default(OAUTH2) @map("auth_type")
+  credentialsEncrypted Json?               @map("credentials_encrypted") @db.JsonB
+  healthStatus         LMSHealthStatus     @default(HEALTHY) @map("health_status")
+  lastSyncAt           DateTime?           @map("last_sync_at")
+  itemsSyncedCount     Int                 @default(0) @map("items_synced_count")
+  createdAt            DateTime            @default(now()) @map("created_at")
+  updatedAt            DateTime            @updatedAt @map("updated_at")
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  workspace    Workspace        @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  platform     LMSPlatform      @relation(fields: [platformId], references: [id], onDelete: Restrict)
+  deployments  LMSDeployment[]
+  activityLogs LMSActivityLog[]
+
+  @@index([organizationId, connectionStatus])
+  @@map("lms_connections")
+}
+
+model LMSDeployment {
+  id                 String              @id @default(uuid()) @db.Uuid
+  lmsConnectionId    String              @map("lms_connection_id") @db.Uuid
+  courseId           String?             @map("course_id") @db.Uuid
+  contentProjectId   String?             @map("content_project_id") @db.Uuid
+  scormPackageId     String?             @map("scorm_package_id") @db.Uuid
+  externalCourseId   String?             @map("external_course_id") @db.VarChar(100)
+  externalActivityId String?             @map("external_activity_id") @db.VarChar(100)
+  deploymentStatus   LMSDeploymentStatus @default(ACTIVE) @map("deployment_status")
+  publishedAt        DateTime            @default(now()) @map("published_at")
+  lastSyncedAt       DateTime?           @map("last_synced_at")
+
+  lmsConnection  LMSConnection    @relation(fields: [lmsConnectionId], references: [id], onDelete: Cascade)
+  course         Course?          @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  contentProject ContentProject?  @relation(fields: [contentProjectId], references: [id], onDelete: SetNull)
+  scormPackage   SCORMPackage?    @relation(fields: [scormPackageId], references: [id], onDelete: SetNull)
+  activityLogs   LMSActivityLog[]
+
+  @@index([lmsConnectionId, deploymentStatus])
+  @@index([courseId])
+  @@index([contentProjectId])
+  @@index([scormPackageId])
+  @@map("lms_deployments")
+}
+
+model LMSActivityLog {
+  id              String   @id @default(uuid()) @db.Uuid
+  lmsConnectionId String   @map("lms_connection_id") @db.Uuid
+  lmsDeploymentId String?  @map("lms_deployment_id") @db.Uuid
+  eventType       String   @map("event_type") @db.VarChar(50) // "PUBLISH", "SYNC", "GRADE_PUSH"
+  status          String   @db.VarChar(20) // "SUCCESS", "FAILURE"
+  payload         Json?    @db.JsonB
+  errorMessage    String?  @map("error_message") @db.Text
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  lmsConnection LMSConnection  @relation(fields: [lmsConnectionId], references: [id], onDelete: Cascade)
+  deployment    LMSDeployment? @relation(fields: [lmsDeploymentId], references: [id], onDelete: SetNull)
+
+  @@index([lmsConnectionId, createdAt])
+  @@map("lms_activity_logs")
+}
+
+// ==============================================================================
+// 7. LEARNER TRACKING & SCORM RUNTIME CMI
+// ==============================================================================
+
+model Learner {
+  id                String   @id @default(uuid()) @db.Uuid
+  organizationId    String   @map("organization_id") @db.Uuid
+  externalLearnerId String?  @map("external_learner_id") @db.VarChar(100) // LMS User ID
+  email             String   @db.VarChar(255)
+  firstName         String   @map("first_name") @db.VarChar(100)
+  lastName          String   @map("last_name") @db.VarChar(100)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  organization    Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  enrollments     Enrollment[]
+  attempts        LearningAttempt[]
+  progressRecords LearnerProgress[]
+
+  @@unique([organizationId, id])
+  @@unique([organizationId, email])
+  @@unique([organizationId, externalLearnerId])
+  @@index([organizationId])
+  @@map("learners")
+}
+
+model Enrollment {
+  id                String           @id @default(uuid()) @db.Uuid
+  learnerId         String           @map("learner_id") @db.Uuid
+  courseId          String           @map("course_id") @db.Uuid
+  status            EnrollmentStatus @default(ENROLLED)
+  enrolledAt        DateTime         @default(now()) @map("enrolled_at")
+  completedAt       DateTime?        @map("completed_at")
+  finalGradePercent Decimal?         @map("final_grade_percent") @db.Decimal(5, 2)
+
+  learner Learner @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  course  Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerId, courseId])
+  @@index([courseId, status])
+  @@map("enrollments")
+}
+
+model LearningAttempt {
+  id               String        @id @default(uuid()) @db.Uuid
+  organizationId   String        @map("organization_id") @db.Uuid
+  learnerId        String        @map("learner_id") @db.Uuid
+  contentProjectId String        @map("content_project_id") @db.Uuid
+  scormPackageId   String?       @map("scorm_package_id") @db.Uuid
+  attemptNumber    Int           @default(1) @map("attempt_number")
+  status           AttemptStatus @default(INCOMPLETE)
+  scoreRaw         Decimal?      @map("score_raw") @db.Decimal(5, 2)
+  scoreScaled      Decimal?      @map("score_scaled") @db.Decimal(4, 3) // -1.000 to 1.000 (SCORM 2004)
+  scoreMin         Decimal?      @default(0.00) @map("score_min") @db.Decimal(5, 2)
+  scoreMax         Decimal?      @default(100.00) @map("score_max") @db.Decimal(5, 2)
+  startedAt        DateTime      @default(now()) @map("started_at")
+  completedAt      DateTime?     @map("completed_at")
+  totalTimeSeconds Int           @default(0) @map("total_time_seconds")
+
+  organization   Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  learner        Learner        @relation(fields: [organizationId, learnerId], references: [organizationId, id], onDelete: Cascade)
+  contentProject ContentProject @relation(fields: [organizationId, contentProjectId], references: [organizationId, id], onDelete: Cascade)
+  scormPackage   SCORMPackage?  @relation(fields: [scormPackageId], references: [id], onDelete: SetNull)
+
+  sessions          LearningSession[]
+  assessmentResults AssessmentResult[]
+  scormRuntime      SCORMRuntimeRecord?
+
+  @@unique([learnerId, contentProjectId, attemptNumber])
+  @@index([organizationId, status])
+  @@index([contentProjectId, status])
+  @@index([scormPackageId])
+  @@map("learning_attempts")
+}
+
+model LearningSession {
+  id                 String    @id @default(uuid()) @db.Uuid
+  attemptId          String    @map("attempt_id") @db.Uuid
+  sessionStartTime   DateTime  @default(now()) @map("session_start_time")
+  sessionEndTime     DateTime? @map("session_end_time")
+  sessionTimeSeconds Int       @default(0) @map("session_time_seconds")
+  userAgent          String?   @map("user_agent") @db.VarChar(512)
+  ipAddress          String?   @map("ip_address") @db.VarChar(45)
+
+  attempt LearningAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId])
+  @@map("learning_sessions")
+}
+
+model AssessmentResult {
+  id                String   @id @default(uuid()) @db.Uuid
+  attemptId         String   @map("attempt_id") @db.Uuid
+  questionId        String   @map("question_id") @db.VarChar(100)
+  questionTitle     String   @map("question_title") @db.VarChar(500)
+  questionType      String   @map("question_type") @db.VarChar(50) // "MULTIPLE_CHOICE", "TRUE_FALSE"
+  learnerAnswerJson Json     @map("learner_answer_json") @db.JsonB
+  correctAnswerJson Json?    @map("correct_answer_json") @db.JsonB
+  isCorrect         Boolean  @map("is_correct")
+  pointsAwarded     Decimal  @default(0.00) @map("points_awarded") @db.Decimal(5, 2)
+  pointsPossible    Decimal  @default(1.00) @map("points_possible") @db.Decimal(5, 2)
+  latencySeconds    Int?     @map("latency_seconds")
+  createdAt         DateTime @default(now()) @map("created_at")
+
+  attempt LearningAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@index([attemptId, isCorrect])
+  @@map("assessment_results")
+}
+
+model LearnerProgress {
+  id                String   @id @default(uuid()) @db.Uuid
+  learnerId         String   @map("learner_id") @db.Uuid
+  contentProjectId  String   @map("content_project_id") @db.Uuid
+  progressPercent   Int      @default(0) @map("progress_percent")
+  slidesViewedCount Int      @default(0) @map("slides_viewed_count")
+  totalSlidesCount  Int      @default(0) @map("total_slides_count")
+  lastActivityAt    DateTime @default(now()) @map("last_activity_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  learner        Learner        @relation(fields: [learnerId], references: [id], onDelete: Cascade)
+  contentProject ContentProject @relation(fields: [contentProjectId], references: [id], onDelete: Cascade)
+
+  @@unique([learnerId, contentProjectId])
+  @@index([contentProjectId, progressPercent])
+  @@map("learner_progresses")
+}
+
+model SCORMRuntimeRecord {
+  id            String        @id @default(uuid()) @db.Uuid
+  attemptId     String        @unique @map("attempt_id") @db.Uuid
+  scormStandard SCORMStandard @map("scorm_standard")
+
+  // SCORM 1.2: cmi.core.lesson_status ('passed','completed','failed','incomplete','browsed','not attempted')
+  cmiLessonStatus String? @map("cmi_lesson_status") @db.VarChar(20)
+
+  // SCORM 2004: cmi.completion_status ('completed','incomplete','not attempted','unknown')
+  cmiCompletionStatus String? @map("cmi_completion_status") @db.VarChar(20)
+
+  // SCORM 2004: cmi.success_status ('passed','failed','unknown')
+  cmiSuccessStatus String? @map("cmi_success_status") @db.VarChar(20)
+
+  // Operational mode: 'normal', 'review', 'browse'
+  cmiMode String? @default("normal") @map("cmi_mode") @db.VarChar(20)
+
+  // Credit mode: 'credit', 'no-credit'
+  cmiCredit String? @default("credit") @map("cmi_credit") @db.VarChar(20)
+
+  cmiEntry           String?  @default("ab-initio") @map("cmi_entry") @db.VarChar(20)
+  cmiExit            String?  @map("cmi_exit") @db.VarChar(20) // "time-out", "suspend", "logout"
+  cmiLocation        String?  @map("cmi_location") @db.VarChar(255) // Bookmark
+  cmiSuspendData     String?  @map("cmi_suspend_data") @db.Text // 4,096 chars (1.2) or 64,000 (2004)
+  cmiProgressMeasure Decimal? @map("cmi_progress_measure") @db.Decimal(4, 3) // 0.000 to 1.000 (2004)
+  scaledPassingScore Decimal? @map("scaled_passing_score") @db.Decimal(4, 3) // SCORM 2004 pass threshold
+  cmiLaunchData      String?  @map("cmi_launch_data") @db.Text // From manifest dataFromLMS
+
+  cmiInteractionsJson Json     @default("[]") @map("cmi_interactions_json") @db.JsonB
+  cmiObjectivesJson   Json     @default("[]") @map("cmi_objectives_json") @db.JsonB
+  rawCmiTree          Json     @default("{}") @map("raw_cmi_tree") @db.JsonB
+  lastSynchronizedAt  DateTime @default(now()) @map("last_synchronized_at")
+
+  attempt LearningAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@map("scorm_runtime_records")
+}
+
+// ==============================================================================
+// 8. SYSTEM OPERATIONS & AUDITING
+// ==============================================================================
+
+model BackgroundJob {
+  id             String    @id @default(uuid()) @db.Uuid
+  organizationId String    @map("organization_id") @db.Uuid
+  idempotencyKey String?   @map("idempotency_key") @db.VarChar(100)
+  jobType        String    @map("job_type") @db.VarChar(50) // "EXPORT_SCORM", "EXPORT_H5P", "LMS_SYNC"
+  status         JobStatus @default(QUEUED)
+  priority       Priority  @default(NORMAL)
+  payload        Json      @default("{}") @db.JsonB
+  result         Json?     @db.JsonB
+  errorLog       String?   @map("error_log") @db.Text
+  attempts       Int       @default(0)
+  maxAttempts    Int       @default(3) @map("max_attempts")
+  lockedBy       String?   @map("locked_by") @db.VarChar(100)
+  lockedAt       DateTime? @map("locked_at")
+  heartbeatAt    DateTime? @map("heartbeat_at")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  createdAt      DateTime  @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, jobType, idempotencyKey])
+  @@index([organizationId, status])
+  @@index([jobType, status])
+  @@map("background_jobs")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  workspaceId    String?  @map("workspace_id") @db.Uuid
+  userId         String?  @map("user_id") @db.Uuid
+  action         String   @db.VarChar(100) // "PROJECT_DELETE", "ROLE_ASSIGN", "PACKAGE_EXPORT"
+  entityType     String   @map("entity_type") @db.VarChar(50)
+  entityId       String?  @map("entity_id") @db.VarChar(100)
+  oldValues      Json?    @map("old_values") @db.JsonB
+  newValues      Json?    @map("new_values") @db.JsonB
+  ipAddress      String?  @map("ip_address") @db.VarChar(45)
+  userAgent      String?  @map("user_agent") @db.VarChar(512)
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user         User?        @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@map("audit_logs")
+}
+
+model Notification {
+  id        String           @id @default(uuid()) @db.Uuid
+  userId    String           @map("user_id") @db.Uuid
+  title     String           @db.VarChar(255)
+  message   String           @db.Text
+  type      NotificationType @default(INFO)
+  isRead    Boolean          @default(false) @map("is_read")
+  readAt    DateTime?        @map("read_at")
+  actionUrl String?          @map("action_url") @db.VarChar(512)
+  createdAt DateTime         @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead])
+  @@map("notifications")
+}
+
+model StorageUsage {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  totalBytesUsed BigInt   @map("total_bytes_used")
+  videoBytes     BigInt   @default(0) @map("video_bytes")
+  imageBytes     BigInt   @default(0) @map("image_bytes")
+  audioBytes     BigInt   @default(0) @map("audio_bytes")
+  documentBytes  BigInt   @default(0) @map("document_bytes")
+  packageBytes   BigInt   @default(0) @map("package_bytes")
+  filesCount     Int      @default(0) @map("files_count")
+  recordedAt     DateTime @default(now()) @map("recorded_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, recordedAt])
+  @@map("storage_usages")
+}
