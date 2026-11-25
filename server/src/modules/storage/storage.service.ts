@@ -4,6 +4,7 @@ import crypto from "node:crypto";
 import { env } from "../../config/env.js";
 import { AppError } from "../../utils/appError.js";
 import { prisma } from "../../database/prisma.js";
+import { R2Client } from "./r2-client.js";
 
 export interface SignedDownloadTokenPayload {
   storageKey: string;
@@ -73,18 +74,28 @@ export class StorageService {
     return resolved;
   }
 
+  public static isR2Active(): boolean {
+    return R2Client.isConfigured();
+  }
+
   /**
-   * Write binary package to storage with checksum and usage tracking
+   * Write binary package to storage (Cloudflare R2 when configured, local disk fallback)
    */
   public static async writePackage(
     organizationId: string,
     storageKey: string,
     data: Buffer
   ): Promise<StorageWriteResult> {
-    const absolutePath = this.getAbsolutePath(storageKey);
-    this.ensureDir(path.dirname(absolutePath));
+    const safeKey = this.sanitizeStorageKey(storageKey);
+    const absolutePath = this.getAbsolutePath(safeKey);
 
-    fs.writeFileSync(absolutePath, data);
+    if (this.isR2Active()) {
+      const contentType = safeKey.endsWith(".h5p") ? "application/x-h5p" : "application/zip";
+      await R2Client.putObject(safeKey, data, contentType);
+    } else {
+      this.ensureDir(path.dirname(absolutePath));
+      fs.writeFileSync(absolutePath, data);
+    }
 
     const sizeBytes = data.length;
     const checksumSha256 = crypto.createHash("sha256").update(data).digest("hex");
@@ -104,11 +115,22 @@ export class StorageService {
     }
 
     return {
-      storageKey,
+      storageKey: safeKey,
       sizeBytes,
       checksumSha256,
       absolutePath,
     };
+  }
+
+  /**
+   * Async reader supporting Cloudflare R2 and local filesystem
+   */
+  public static async readPackageAsync(storageKey: string): Promise<Buffer> {
+    const safeKey = this.sanitizeStorageKey(storageKey);
+    if (this.isR2Active()) {
+      return R2Client.getObject(safeKey);
+    }
+    return this.readPackage(safeKey);
   }
 
   /**

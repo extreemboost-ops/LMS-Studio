@@ -6,6 +6,7 @@
 import crypto from "node:crypto";
 import { ZipArchiveService, calculateCrc32 } from "../src/modules/export/zip-archive.service.js";
 import { StorageService } from "../src/modules/storage/storage.service.js";
+import { R2Client } from "../src/modules/storage/r2-client.js";
 import { SCORMBundlerService } from "../src/modules/export/scorm-bundler.service.js";
 import { H5PBundlerService } from "../src/modules/export/h5p-bundler.service.js";
 import { ExportQueueService } from "../src/modules/export/export-queue.service.js";
@@ -299,6 +300,29 @@ export async function runCloudStorageExportTests(): Promise<{
     if (processedJob.result?.storageKey) {
       StorageService.deletePackage(processedJob.result.storageKey);
     }
+
+    // 5. Cloudflare R2 AWS Signature V4 signing verification
+    const signed = R2Client.buildSignedRequest({
+      method: "PUT",
+      key: "organizations/org-1/scorm/test.zip",
+      body: Buffer.from("PK-test"),
+      contentType: "application/zip",
+      config: {
+        accountId: "acc1234567890",
+        accessKeyId: "r2_key_id",
+        secretAccessKey: "r2_secret_key",
+        bucketName: "lms-studio-packages",
+      },
+    });
+    assert(
+      "Cloudflare R2 URL targets accountId.r2.cloudflarestorage.com",
+      signed.url === "https://acc1234567890.r2.cloudflarestorage.com/lms-studio-packages/organizations/org-1/scorm/test.zip"
+    );
+    assert(
+      "Cloudflare R2 request includes AWS4-HMAC-SHA256 Authorization and x-amz-content-sha256",
+      signed.headers.Authorization.startsWith("AWS4-HMAC-SHA256 Credential=r2_key_id/") &&
+        signed.headers["x-amz-content-sha256"].length === 64
+    );
   } catch (err: any) {
     assert("Export queue test crashed", false, err.message);
   }

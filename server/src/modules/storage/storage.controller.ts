@@ -20,8 +20,8 @@ export class StorageController {
       // 1. Verify token signature and expiry
       const payload = StorageService.verifySignedDownloadToken(token);
 
-      // 2. Read package from storage
-      const buffer = StorageService.readPackage(payload.storageKey);
+      // 2. Read package from storage (Cloudflare R2 or local disk)
+      const buffer = await StorageService.readPackageAsync(payload.storageKey);
 
       // 3. Set headers
       const isH5p = payload.filename.endsWith(".h5p");
