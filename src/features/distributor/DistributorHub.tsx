@@ -9,9 +9,12 @@ import {
   CheckCircle2,
   Globe,
   ShieldAlert,
+  Users,
 } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { PanelTitle } from "../../components/ui/PanelTitle";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 import {
   DistributorApiService,
   type DistributorClientDto,
@@ -22,7 +25,10 @@ import {
 type PartnerTab = "overview" | "clients" | "licenses" | "branding" | "commissions";
 
 function formatUsd(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function DistributorHub() {
@@ -44,7 +50,9 @@ export function DistributorHub() {
   const [licPlan, setLicPlan] = useState<"starter" | "pro" | "business" | "enterprise">("pro");
   const [licCount, setLicCount] = useState(5);
   const [licSeats, setLicSeats] = useState(25);
-  const [generatedKeys, setGeneratedKeys] = useState<Array<{ id: string; code: string; planCode: string }>>([]);
+  const [generatedKeys, setGeneratedKeys] = useState<
+    Array<{ id: string; code: string; planCode: string }>
+  >([]);
 
   // Branding form state
   const [appName, setAppName] = useState("");
@@ -99,7 +107,6 @@ export function DistributorHub() {
       setNewOwnerEmail("");
       await loadAll();
     } catch (err: any) {
-      // Demo fallback update when offline
       setClients((prev) => [
         {
           id: `cli-${Date.now()}`,
@@ -225,6 +232,7 @@ export function DistributorHub() {
   return (
     <>
       <PageHeader
+        eyebrow="PARTNER CHANNEL"
         title="Distributor Hub"
         subtitle={
           dashboard
@@ -256,74 +264,83 @@ export function DistributorHub() {
         ))}
       </div>
 
-      {/* KPI Strip */}
+      {/* KPI Strip using Figma Make .stat-grid / .stat-card */}
       {dashboard && (
-        <div className="kpi-grid" style={{ marginBottom: "20px" }}>
-          <div className="panel kpi-card">
+        <section className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-icon blue">
+              <Building2 size={19} />
+            </div>
             <span>Total Client Orgs</span>
             <strong>{dashboard.kpis.totalClients}</strong>
             <small>{dashboard.kpis.activeClients} active</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon indigo">
+              <Users size={19} />
+            </div>
             <span>Seat Pool Utilization</span>
             <strong>
               {dashboard.distributor.seatPoolUsed} / {dashboard.distributor.seatPoolTotal}
             </strong>
             <small>Allocated partner seats</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon green">
+              <KeyRound size={19} />
+            </div>
             <span>Unused License Keys</span>
             <strong>{dashboard.kpis.unusedLicenses}</strong>
             <small>Ready for B2B delivery</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon violet">
+              <DollarSign size={19} />
+            </div>
             <span>Available Commission</span>
             <strong>{formatUsd(dashboard.kpis.availableBalanceCents)}</strong>
             <small>Total earned: {formatUsd(dashboard.kpis.totalEarnedCents)}</small>
           </div>
-        </div>
+        </section>
       )}
 
       {tab === "overview" && (
-        <div className="panel" style={{ padding: "20px" }}>
-          <h3 style={{ marginBottom: "12px" }}>Recent Client Organizations</h3>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Organization</th>
-                <th>Plan</th>
-                <th>Seats</th>
-                <th>Status</th>
-                <th>Packages</th>
-              </tr>
-            </thead>
-            <tbody>
-              {clients.slice(0, 6).map((c) => (
-                <tr key={c.id}>
-                  <td>
-                    <strong>{c.name}</strong>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>{c.slug}</div>
-                  </td>
-                  <td>
-                    <span className="badge">{c.plan.toUpperCase()}</span>
-                  </td>
-                  <td>{c.seatCount}</td>
-                  <td>
-                    <span className="badge">{c.subscriptionStatus}</span>
-                  </td>
-                  <td>{c.packagesCount}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <section className="panel">
+          <PanelTitle title="Recent Client Organizations" />
+          <div className="data-table">
+            <div className="table-row header">
+              <span>Organization</span>
+              <span>Plan</span>
+              <span>Seats</span>
+              <span>Status</span>
+              <span>Packages</span>
+            </div>
+            {clients.slice(0, 6).map((c) => (
+              <div className="table-row" key={c.id}>
+                <span>
+                  <div className="avatar blue">{c.name.substring(0, 2).toUpperCase()}</div>
+                  <span style={{ display: "flex", flexDirection: "column" }}>
+                    <b>{c.name}</b>
+                    <small>{c.slug}</small>
+                  </span>
+                </span>
+                <span>{c.plan.toUpperCase()}</span>
+                <span>{c.seatCount}</span>
+                <span>
+                  <StatusBadge status={c.subscriptionStatus} />
+                </span>
+                <span>{c.packagesCount}</span>
+              </div>
+            ))}
+          </div>
+        </section>
       )}
 
       {tab === "clients" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <form className="panel" style={{ padding: "20px" }} onSubmit={handleProvisionClient}>
-            <h3 style={{ marginBottom: "12px" }}>Provision New Client Organization</h3>
-            <div className="form-grid">
+            <PanelTitle title="Provision New Client Organization" />
+            <div className="form-grid" style={{ marginTop: "12px" }}>
               <label>
                 <span>Client Organization Name</span>
                 <input
@@ -371,53 +388,53 @@ export function DistributorHub() {
             </div>
           </form>
 
-          <div className="panel" style={{ padding: "20px" }}>
-            <h3 style={{ marginBottom: "12px" }}>Managed Client Directory</h3>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Organization</th>
-                  <th>Plan</th>
-                  <th>Seats</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {clients.map((c) => (
-                  <tr key={c.id}>
-                    <td>
-                      <strong>{c.name}</strong>
-                      <div style={{ fontSize: "12px", color: "#64748b" }}>{c.slug}</div>
-                    </td>
-                    <td>{c.plan.toUpperCase()}</td>
-                    <td>{c.seatCount}</td>
-                    <td>
-                      <span className="badge">{c.isActive ? "ACTIVE" : "SUSPENDED"}</span>
-                    </td>
-                    <td>
-                      <button
-                        type="button"
-                        className="btn secondary"
-                        onClick={() => handleToggleClient(c)}
-                      >
-                        {c.isActive ? <ShieldAlert size={14} /> : <CheckCircle2 size={14} />}
-                        {c.isActive ? "Suspend" : "Activate"}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <section className="panel">
+            <PanelTitle title="Managed Client Directory" />
+            <div className="data-table">
+              <div className="table-row header">
+                <span>Organization</span>
+                <span>Plan</span>
+                <span>Seats</span>
+                <span>Status</span>
+                <span>Actions</span>
+              </div>
+              {clients.map((c) => (
+                <div className="table-row" key={c.id}>
+                  <span>
+                    <div className="avatar indigo">{c.name.substring(0, 2).toUpperCase()}</div>
+                    <span style={{ display: "flex", flexDirection: "column" }}>
+                      <b>{c.name}</b>
+                      <small>{c.slug}</small>
+                    </span>
+                  </span>
+                  <span>{c.plan.toUpperCase()}</span>
+                  <span>{c.seatCount}</span>
+                  <span>
+                    <StatusBadge status={c.isActive ? "ACTIVE" : "SUSPENDED"} />
+                  </span>
+                  <span>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
+                      onClick={() => handleToggleClient(c)}
+                    >
+                      {c.isActive ? <ShieldAlert size={13} /> : <CheckCircle2 size={13} />}
+                      {c.isActive ? "Suspend" : "Activate"}
+                    </button>
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
         </div>
       )}
 
       {tab === "licenses" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <form className="panel" style={{ padding: "20px" }} onSubmit={handleGenerateLicenses}>
-            <h3 style={{ marginBottom: "12px" }}>Generate Partner License Keys</h3>
-            <div className="form-grid">
+            <PanelTitle title="Generate Partner License Keys" />
+            <div className="form-grid" style={{ marginTop: "12px" }}>
               <label>
                 <span>Plan Tier</span>
                 <select value={licPlan} onChange={(e) => setLicPlan(e.target.value as any)}>
@@ -457,9 +474,9 @@ export function DistributorHub() {
           </form>
 
           {generatedKeys.length > 0 && (
-            <div className="panel" style={{ padding: "20px" }}>
-              <h3 style={{ marginBottom: "10px" }}>Newly Issued License Keys (Copy Now)</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            <section className="panel" style={{ padding: "20px" }}>
+              <PanelTitle title="Newly Issued License Keys (Copy Now)" />
+              <div style={{ display: "flex", flexDirection: "column", gap: "8px", marginTop: "12px" }}>
                 {generatedKeys.map((k) => (
                   <div
                     key={k.id}
@@ -469,8 +486,9 @@ export function DistributorHub() {
                       alignItems: "center",
                       padding: "10px 12px",
                       borderRadius: "8px",
-                      border: "1px solid var(--border, #e2e8f0)",
+                      border: "1px solid #e2e8f0",
                       fontFamily: "monospace",
+                      fontSize: "13px",
                     }}
                   >
                     <span>
@@ -479,25 +497,26 @@ export function DistributorHub() {
                     <button
                       type="button"
                       className="btn secondary"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
                       onClick={() => {
                         void navigator.clipboard?.writeText(k.code);
                         notify("License key copied!");
                       }}
                     >
-                      <Copy size={14} /> Copy
+                      <Copy size={13} /> Copy
                     </button>
                   </div>
                 ))}
               </div>
-            </div>
+            </section>
           )}
         </div>
       )}
 
       {tab === "branding" && (
         <form className="panel" style={{ padding: "20px" }} onSubmit={handleSaveBranding}>
-          <h3 style={{ marginBottom: "12px" }}>White-Label Studio & Custom Domain</h3>
-          <div className="form-grid">
+          <PanelTitle title="White-Label Studio & Custom Domain" />
+          <div className="form-grid" style={{ marginTop: "12px" }}>
             <label>
               <span>Studio Brand Name</span>
               <input value={appName} onChange={(e) => setAppName(e.target.value)} />
@@ -539,7 +558,8 @@ export function DistributorHub() {
                 marginTop: "14px",
                 padding: "12px",
                 borderRadius: "8px",
-                background: "var(--surface-muted, #f8fafc)",
+                background: "#f8fafc",
+                border: "1px solid #e2e8f0",
                 fontSize: "12px",
               }}
             >
@@ -564,78 +584,85 @@ export function DistributorHub() {
       {tab === "commissions" && (
         <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
           <form className="panel" style={{ padding: "20px" }} onSubmit={handleRequestPayout}>
-            <h3 style={{ marginBottom: "10px" }}>Request Commission Payout</h3>
-            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap", alignItems: "center" }}>
-              <input
-                type="number"
-                min={10}
-                step="1"
-                value={payoutDollars}
-                onChange={(e) => setPayoutDollars(e.target.value)}
-                style={{ width: "160px" }}
-              />
-              <button className="btn primary" type="submit" disabled={busy}>
-                <DollarSign size={15} />
-                Request Payout (USD)
-              </button>
+            <PanelTitle title="Request Commission Payout" />
+            <div className="form-grid" style={{ marginTop: "12px" }}>
+              <label>
+                <span>Payout Amount (USD)</span>
+                <input
+                  type="number"
+                  min={10}
+                  step="1"
+                  value={payoutDollars}
+                  onChange={(e) => setPayoutDollars(e.target.value)}
+                />
+              </label>
+              <div style={{ display: "flex", alignItems: "flex-end" }}>
+                <button className="btn primary" type="submit" disabled={busy}>
+                  <DollarSign size={15} />
+                  Request Payout
+                </button>
+              </div>
             </div>
           </form>
 
-          <div className="panel" style={{ padding: "20px" }}>
-            <h3 style={{ marginBottom: "12px" }}>Commission Ledger</h3>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Description</th>
-                  <th>Gross</th>
-                  <th>Rate</th>
-                  <th>Earned</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {commissions.map((c) => (
-                  <tr key={c.id}>
-                    <td>{c.description}</td>
-                    <td>{formatUsd(c.grossAmountCents)}</td>
-                    <td>{c.commissionPercent}%</td>
-                    <td>
-                      <strong>{formatUsd(c.commissionCents)}</strong>
-                    </td>
-                    <td>
-                      <span className="badge">{c.status}</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <section className="panel">
+            <PanelTitle title="Commission Ledger" />
+            <div className="data-table">
+              <div className="table-row header">
+                <span>Description</span>
+                <span>Gross</span>
+                <span>Rate</span>
+                <span>Earned</span>
+                <span>Status</span>
+              </div>
+              {commissions.map((c) => (
+                <div className="table-row" key={c.id}>
+                  <span>
+                    <b>{c.description}</b>
+                  </span>
+                  <span>{formatUsd(c.grossAmountCents)}</span>
+                  <span>{c.commissionPercent}%</span>
+                  <span>
+                    <b>{formatUsd(c.commissionCents)}</b>
+                  </span>
+                  <span>
+                    <StatusBadge status={c.status} />
+                  </span>
+                </div>
+              ))}
+            </div>
+          </section>
 
-            {payouts.length > 0 && (
-              <>
-                <h4 style={{ marginTop: "20px", marginBottom: "10px" }}>Payout History</h4>
-                <table className="data-table">
-                  <thead>
-                    <tr>
-                      <th>Amount</th>
-                      <th>Reference</th>
-                      <th>Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {payouts.map((p) => (
-                      <tr key={p.id}>
-                        <td>{formatUsd(p.amountCents)}</td>
-                        <td>{p.referenceNote || "—"}</td>
-                        <td>
-                          <span className="badge">{p.status}</span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </>
-            )}
-          </div>
+          {payouts.length > 0 && (
+            <section className="panel">
+              <PanelTitle title="Payout History" />
+              <div className="data-table">
+                <div
+                  className="table-row header"
+                  style={{ gridTemplateColumns: "1fr 2fr 1fr" }}
+                >
+                  <span>Amount</span>
+                  <span>Reference</span>
+                  <span>Status</span>
+                </div>
+                {payouts.map((p) => (
+                  <div
+                    className="table-row"
+                    key={p.id}
+                    style={{ gridTemplateColumns: "1fr 2fr 1fr" }}
+                  >
+                    <span>
+                      <b>{formatUsd(p.amountCents)}</b>
+                    </span>
+                    <span>{p.referenceNote || "—"}</span>
+                    <span>
+                      <StatusBadge status={p.status} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       )}
     </>

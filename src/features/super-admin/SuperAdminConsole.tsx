@@ -1,11 +1,25 @@
 import { useEffect, useState } from "react";
-import { ShieldCheck, Check, X, DollarSign, KeyRound, Building2, Users } from "lucide-react";
+import {
+  ShieldCheck,
+  Check,
+  X,
+  DollarSign,
+  KeyRound,
+  Building2,
+  Users,
+  TrendingUp,
+} from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { PanelTitle } from "../../components/ui/PanelTitle";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 import { DistributorApiService } from "../../services/distributor.service";
 
 function formatUsd(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })}`;
 }
 
 export function SuperAdminConsole() {
@@ -93,7 +107,7 @@ export function SuperAdminConsole() {
         notify(`Enterprise key issued & copied: ${code}`);
       }
     } catch {
-      const demo = `LMS-ENTE-9K4P-7X2M-4Q8W`;
+      const demo = "LMS-ENTE-9K4P-7X2M-4Q8W";
       void navigator.clipboard?.writeText(demo);
       notify(`Enterprise key generated: ${demo}`);
     } finally {
@@ -106,6 +120,7 @@ export function SuperAdminConsole() {
   return (
     <>
       <PageHeader
+        eyebrow="PLATFORM GOVERNANCE"
         title="SaaS Command Center"
         subtitle="Platform-wide revenue, distributor approvals, payout settlements, and tenant governance."
       >
@@ -115,193 +130,206 @@ export function SuperAdminConsole() {
           onClick={handleIssueGlobalKey}
           disabled={busy}
         >
-          <KeyRound size={15} />
+          <KeyRound size={16} />
           Quick Issue Enterprise Key
         </button>
       </PageHeader>
 
       {metrics && (
-        <div className="kpi-grid" style={{ marginBottom: "20px" }}>
-          <div className="panel kpi-card">
+        <section className="stat-grid">
+          <div className="stat-card">
+            <div className="stat-icon blue">
+              <TrendingUp size={19} />
+            </div>
             <span>Estimated Platform MRR</span>
             <strong>{formatUsd(metrics.estimatedMrrCents)}</strong>
             <small>{metrics.activeSubscriptions} paid subscriptions</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon indigo">
+              <Building2 size={19} />
+            </div>
             <span>Total Tenant Orgs</span>
             <strong>{metrics.totalOrganizations}</strong>
             <small>{metrics.trialingSubscriptions} in 14-day trial</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon green">
+              <Users size={19} />
+            </div>
             <span>Partner Distributors</span>
             <strong>{metrics.totalDistributors}</strong>
             <small>{metrics.pendingApplications} pending review</small>
           </div>
-          <div className="panel kpi-card">
+          <div className="stat-card">
+            <div className="stat-icon violet">
+              <DollarSign size={19} />
+            </div>
             <span>Pending Payouts</span>
             <strong>{formatUsd(metrics.pendingPayoutsCents)}</strong>
             <small>Awaiting settlement</small>
           </div>
-        </div>
+        </section>
       )}
 
-      <div style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
-        {/* Distributor Applications & Governance */}
-        <div className="panel" style={{ padding: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <ShieldCheck size={17} />
-            <h3 style={{ margin: 0 }}>Distributor Partners & Approval Queue</h3>
+      {/* Distributor Applications & Governance */}
+      <section className="panel" style={{ marginBottom: "18px" }}>
+        <PanelTitle title="Distributor Partners & Approval Queue" />
+        <div className="data-table">
+          <div
+            className="table-row header"
+            style={{ gridTemplateColumns: "2fr 1fr 0.7fr 0.6fr 0.8fr 130px" }}
+          >
+            <span>Partner</span>
+            <span>Billing Mode</span>
+            <span>Commission</span>
+            <span>Clients</span>
+            <span>Status</span>
+            <span>Governance</span>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Partner</th>
-                <th>Billing Mode</th>
-                <th>Commission</th>
-                <th>Clients</th>
-                <th>Status</th>
-                <th>Governance</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(overview?.distributors || []).map((d: any) => (
-                <tr key={d.id}>
-                  <td>
-                    <strong>{d.name}</strong>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>{d.contactEmail}</div>
-                  </td>
-                  <td>{d.billingMode}</td>
-                  <td>{d.commissionPercent}%</td>
-                  <td>{d._count?.organizations ?? 0}</td>
-                  <td>
-                    <span className="badge">{d.status}</span>
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "6px" }}>
-                      {d.status !== "ACTIVE" && (
-                        <button
-                          type="button"
-                          className="btn primary"
-                          disabled={busy}
-                          onClick={() => handleReviewDistributor(d.id, "ACTIVE")}
-                        >
-                          <Check size={14} /> Approve
-                        </button>
-                      )}
-                      {d.status === "ACTIVE" && (
-                        <button
-                          type="button"
-                          className="btn secondary"
-                          disabled={busy}
-                          onClick={() => handleReviewDistributor(d.id, "SUSPENDED")}
-                        >
-                          <X size={14} /> Suspend
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(overview?.distributors || []).map((d: any) => (
+            <div
+              className="table-row"
+              key={d.id}
+              style={{ gridTemplateColumns: "2fr 1fr 0.7fr 0.6fr 0.8fr 130px" }}
+            >
+              <span>
+                <div className="avatar blue">
+                  {String(d.name || "P").substring(0, 2).toUpperCase()}
+                </div>
+                <span style={{ display: "flex", flexDirection: "column" }}>
+                  <b>{d.name}</b>
+                  <small>{d.contactEmail}</small>
+                </span>
+              </span>
+              <span>{d.billingMode}</span>
+              <span>{d.commissionPercent}%</span>
+              <span>{d._count?.organizations ?? 0}</span>
+              <span>
+                <StatusBadge status={d.status} />
+              </span>
+              <span style={{ display: "flex", gap: "6px" }}>
+                {d.status !== "ACTIVE" ? (
+                  <button
+                    type="button"
+                    className="btn primary"
+                    style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
+                    disabled={busy}
+                    onClick={() => handleReviewDistributor(d.id, "ACTIVE")}
+                  >
+                    <Check size={13} /> Approve
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="btn secondary"
+                    style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
+                    disabled={busy}
+                    onClick={() => handleReviewDistributor(d.id, "SUSPENDED")}
+                  >
+                    <X size={13} /> Suspend
+                  </button>
+                )}
+              </span>
+            </div>
+          ))}
         </div>
+      </section>
 
-        {/* Payout Settlement Queue */}
-        <div className="panel" style={{ padding: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <DollarSign size={17} />
-            <h3 style={{ margin: 0 }}>Commission Payout Requests</h3>
+      {/* Payout Settlement Queue */}
+      <section className="panel" style={{ marginBottom: "18px" }}>
+        <PanelTitle title="Commission Payout Requests" />
+        <div className="data-table">
+          <div
+            className="table-row header"
+            style={{ gridTemplateColumns: "1.6fr 1fr 1.6fr 0.9fr 160px" }}
+          >
+            <span>Distributor</span>
+            <span>Amount</span>
+            <span>Reference</span>
+            <span>Status</span>
+            <span>Settlement</span>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Distributor</th>
-                <th>Amount</th>
-                <th>Reference</th>
-                <th>Status</th>
-                <th>Settlement</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(overview?.payoutRequests || []).map((p: any) => (
-                <tr key={p.id}>
-                  <td>{p.distributor?.name || p.distributorId}</td>
-                  <td>
-                    <strong>{formatUsd(p.amountCents)}</strong>
-                  </td>
-                  <td>{p.referenceNote || "—"}</td>
-                  <td>
-                    <span className="badge">{p.status}</span>
-                  </td>
-                  <td>
-                    {p.status === "REQUESTED" || p.status === "APPROVED" ? (
-                      <div style={{ display: "flex", gap: "6px" }}>
-                        <button
-                          type="button"
-                          className="btn primary"
-                          disabled={busy}
-                          onClick={() => handleProcessPayout(p.id, "PAID")}
-                        >
-                          Mark Paid
-                        </button>
-                        <button
-                          type="button"
-                          className="btn secondary"
-                          disabled={busy}
-                          onClick={() => handleProcessPayout(p.id, "REJECTED")}
-                        >
-                          Reject
-                        </button>
-                      </div>
-                    ) : (
-                      <span>Settled</span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(overview?.payoutRequests || []).map((p: any) => (
+            <div
+              className="table-row"
+              key={p.id}
+              style={{ gridTemplateColumns: "1.6fr 1fr 1.6fr 0.9fr 160px" }}
+            >
+              <span>
+                <ShieldCheck size={15} color="#2563eb" />
+                <b>{p.distributor?.name || p.distributorId}</b>
+              </span>
+              <span>
+                <b>{formatUsd(p.amountCents)}</b>
+              </span>
+              <span>{p.referenceNote || "—"}</span>
+              <span>
+                <StatusBadge status={p.status} />
+              </span>
+              <span style={{ display: "flex", gap: "6px" }}>
+                {p.status === "REQUESTED" || p.status === "APPROVED" ? (
+                  <>
+                    <button
+                      type="button"
+                      className="btn primary"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
+                      disabled={busy}
+                      onClick={() => handleProcessPayout(p.id, "PAID")}
+                    >
+                      Mark Paid
+                    </button>
+                    <button
+                      type="button"
+                      className="btn secondary"
+                      style={{ height: "30px", padding: "0 10px", fontSize: "12px" }}
+                      disabled={busy}
+                      onClick={() => handleProcessPayout(p.id, "REJECTED")}
+                    >
+                      Reject
+                    </button>
+                  </>
+                ) : (
+                  <span>Settled</span>
+                )}
+              </span>
+            </div>
+          ))}
         </div>
+      </section>
 
-        {/* Global Organizations */}
-        <div className="panel" style={{ padding: "20px" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "12px" }}>
-            <Building2 size={17} />
-            <h3 style={{ margin: 0 }}>Global Tenant Directory</h3>
+      {/* Global Organizations */}
+      <section className="panel">
+        <PanelTitle title="Global Tenant Directory" />
+        <div className="data-table">
+          <div className="table-row header">
+            <span>Organization</span>
+            <span>Channel / Distributor</span>
+            <span>Plan</span>
+            <span>Seats</span>
+            <span>Status</span>
           </div>
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Organization</th>
-                <th>Channel / Distributor</th>
-                <th>Plan</th>
-                <th>Seats</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(overview?.recentOrganizations || []).map((o: any) => (
-                <tr key={o.id}>
-                  <td>
-                    <strong>{o.name}</strong>
-                    <div style={{ fontSize: "12px", color: "#64748b" }}>{o.slug}</div>
-                  </td>
-                  <td>
-                    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px" }}>
-                      <Users size={13} /> {o.distributorName}
-                    </span>
-                  </td>
-                  <td>{String(o.plan).toUpperCase()}</td>
-                  <td>{o.seatCount}</td>
-                  <td>
-                    <span className="badge">{o.subscriptionStatus}</span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          {(overview?.recentOrganizations || []).map((o: any) => (
+            <div className="table-row" key={o.id}>
+              <span>
+                <div className="avatar indigo">
+                  {String(o.name || "O").substring(0, 2).toUpperCase()}
+                </div>
+                <span style={{ display: "flex", flexDirection: "column" }}>
+                  <b>{o.name}</b>
+                  <small>{o.slug}</small>
+                </span>
+              </span>
+              <span>{o.distributorName}</span>
+              <span>{String(o.plan).toUpperCase()}</span>
+              <span>{o.seatCount}</span>
+              <span>
+                <StatusBadge status={o.subscriptionStatus} />
+              </span>
+            </div>
+          ))}
         </div>
-      </div>
+      </section>
     </>
   );
 }

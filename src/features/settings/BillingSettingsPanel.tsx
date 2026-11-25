@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Check, CreditCard, KeyRound, Sparkles, ExternalLink } from "lucide-react";
 import { useApp } from "../../context/AppContext";
+import { StatusBadge } from "../../components/ui/StatusBadge";
 import {
   BillingApiService,
   type OrganizationEntitlementsDto,
@@ -133,7 +134,7 @@ export function BillingSettingsPanel() {
               <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
                 <Sparkles size={16} />
                 <strong style={{ fontSize: "15px" }}>{entitlements.planName}</strong>
-                <span className="badge">{entitlements.status}</span>
+                <StatusBadge status={entitlements.status} />
               </div>
               <p style={{ fontSize: "12px", color: "var(--text-muted, #64748b)", marginTop: "4px" }}>
                 Storage: {formatBytes(entitlements.usage.storageBytesUsed)} /{" "}
@@ -188,14 +189,16 @@ export function BillingSettingsPanel() {
           <KeyRound size={15} />
           <span>Redeem Distributor / Enterprise License Key</span>
         </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <input
-            type="text"
-            placeholder="LMS-PRO-XXXX-XXXX-XXXX"
-            value={licenseCode}
-            onChange={(e) => setLicenseCode(e.target.value.toUpperCase())}
-            style={{ flex: 1, minWidth: "220px" }}
-          />
+        <div className="form-grid" style={{ gridTemplateColumns: "1fr auto", alignItems: "end" }}>
+          <label>
+            <span>License Code</span>
+            <input
+              type="text"
+              placeholder="LMS-PRO-XXXX-XXXX-XXXX"
+              value={licenseCode}
+              onChange={(e) => setLicenseCode(e.target.value.toUpperCase())}
+            />
+          </label>
           <button className="btn primary" type="submit" disabled={busy || !licenseCode.trim()}>
             Redeem Key
           </button>
