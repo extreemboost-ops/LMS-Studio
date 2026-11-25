@@ -13,6 +13,9 @@ import { AppError } from "./utils/appError.js";
 export function createApp(): Express {
   const app = express();
 
+  // Trust Render / Vercel reverse proxy headers (X-Forwarded-For)
+  app.set("trust proxy", 1);
+
   // Security headers
   app.use(helmet());
 

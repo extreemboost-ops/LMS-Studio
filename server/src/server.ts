@@ -7,6 +7,18 @@ import { checkDatabaseHealth, disconnectPrisma } from "./database/prisma.js";
 let server: Server | null = null;
 
 async function bootstrap(): Promise<void> {
+  if (env.NODE_ENV === "production") {
+    try {
+      const { execSync } = await import("node:child_process");
+      logger.info("Synchronizing Prisma schema with PostgreSQL database...");
+      execSync("node ./node_modules/prisma/build/index.js db push --accept-data-loss", {
+        stdio: "inherit",
+      });
+    } catch (err) {
+      logger.warn({ err }, "Automatic prisma db push skipped or failed");
+    }
+  }
+
   const app = createApp();
 
   server = app.listen(env.PORT, env.HOST, () => {

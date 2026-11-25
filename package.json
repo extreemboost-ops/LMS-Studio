@@ -11,7 +11,7 @@
     "format": "oxfmt",
     "server:dev": "node ./node_modules/tsx/dist/cli.mjs server/src/server.ts",
     "server:build": "node ./node_modules/typescript/bin/tsc --project server/tsconfig.json",
-    "server:start": "node dist-server/server.js",
+    "server:start": "node ./node_modules/prisma/build/index.js db push --accept-data-loss && node dist-server/server.js",
     "server:test": "node ./node_modules/tsx/dist/cli.mjs server/tests/run-tests.ts",
     "db:generate": "node ./node_modules/prisma/build/index.js generate",
     "db:validate": "node ./node_modules/prisma/build/index.js validate",
