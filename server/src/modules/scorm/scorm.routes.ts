@@ -3,6 +3,7 @@ import { SCORMController } from "./scorm.controller.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { resolveTenantContext } from "../../middlewares/tenantContext.js";
 import { requirePermission } from "../../middlewares/rbac.js";
+import { enforceExportQuota } from "../../middlewares/entitlements.js";
 import { validateRequest } from "../../middlewares/validateRequest.js";
 import {
   createSCORMExportSchema,
@@ -20,6 +21,7 @@ projectSCORMExportRoutes.use(resolveTenantContext);
 projectSCORMExportRoutes.post(
   "/export",
   requirePermission("content:publish"),
+  enforceExportQuota,
   validateRequest({ body: createSCORMExportSchema }),
   SCORMController.exportPackage
 );

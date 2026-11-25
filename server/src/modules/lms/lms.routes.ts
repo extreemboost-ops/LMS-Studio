@@ -3,6 +3,7 @@ import { LMSController } from "./lms.controller.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { resolveTenantContext } from "../../middlewares/tenantContext.js";
 import { requirePermission } from "../../middlewares/rbac.js";
+import { requireFeature } from "../../middlewares/entitlements.js";
 import { validateRequest } from "../../middlewares/validateRequest.js";
 import {
   createLMSConnectionSchema,
@@ -43,6 +44,7 @@ organizationLMSRoutes.get("/connections", requirePermission("settings:view"), LM
 organizationLMSRoutes.post(
   "/connections",
   requirePermission("settings:edit"),
+  requireFeature("lti13"),
   validateRequest({ body: createLMSConnectionSchema }),
   LMSController.createConnection
 );

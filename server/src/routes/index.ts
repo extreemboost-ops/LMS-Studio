@@ -27,6 +27,15 @@ import {
 } from "../modules/lms/lms.routes.js";
 import { storageRoutes } from "../modules/storage/storage.routes.js";
 import { analyticsRoutes } from "../modules/analytics/analytics.routes.js";
+import {
+  publicBillingRoutes,
+  organizationBillingRoutes,
+} from "../modules/billing/billing.routes.js";
+import {
+  distributorRoutes,
+  adminDistributorRoutes,
+  publicBrandingRoutes,
+} from "../modules/distributor/distributor.routes.js";
 
 const apiV1Router = Router();
 
@@ -34,7 +43,12 @@ const apiV1Router = Router();
 apiV1Router.use("/health", healthRoutes);
 apiV1Router.use("/auth", authRoutes);
 apiV1Router.use("/users", userRoutes);
+apiV1Router.use("/public", publicBrandingRoutes);
+apiV1Router.use("/billing", publicBillingRoutes);
+apiV1Router.use("/distributor", distributorRoutes);
+apiV1Router.use("/admin/distributors", adminDistributorRoutes);
 apiV1Router.use("/organizations", organizationRoutes);
+apiV1Router.use("/organizations/:organizationId/billing", organizationBillingRoutes);
 apiV1Router.use("/organizations/:organizationId", organizationMemberRoutes);
 apiV1Router.use("/organizations/:organizationId", organizationWorkspaceRoutes);
 apiV1Router.use("/organizations/:organizationId/courses", courseRoutes);

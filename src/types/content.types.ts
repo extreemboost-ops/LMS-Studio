@@ -14,6 +14,8 @@ export type Route =
   | "analytics"
   | "team"
   | "settings"
+  | "distributor"
+  | "super-admin"
   | "help";
 
 export type ModalType = "import" | "export" | "delete" | null;

@@ -1,11 +1,13 @@
 import { Boxes, PanelLeftClose, PanelLeftOpen, ChevronDown } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { useAuth } from "../../context/AuthContext";
+import { useBranding } from "../../context/BrandingContext";
 import { navGroups } from "../../mocks/content.mock";
 
 export function Sidebar() {
   const { route, navigate, sidebarOpen, setSidebarOpen, mobileNav } = useApp();
   const { organization, openAuthModal } = useAuth();
+  const { branding } = useBranding();
 
   const orgName = organization?.name || "Acme Learning";
   const orgPlan = organization?.plan || "Business plan";
@@ -15,12 +17,20 @@ export function Sidebar() {
     <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"} ${mobileNav ? "mobile-open" : ""}`}>
       <div className="brand">
         <div className="brand-mark">
-          <Boxes size={20} strokeWidth={2.3} />
+          {branding.isWhiteLabeled && branding.logoUrl ? (
+            <img
+              src={branding.logoUrl}
+              alt={branding.appName}
+              style={{ width: 22, height: 22, objectFit: "contain", borderRadius: 4 }}
+            />
+          ) : (
+            <Boxes size={20} strokeWidth={2.3} />
+          )}
         </div>
         {sidebarOpen && (
           <div className="brand-copy">
-            <b>SCORM & H5P</b>
-            <span>STUDIO</span>
+            <b>{branding.appName}</b>
+            <span>{branding.appSubtitle}</span>
           </div>
         )}
         <button

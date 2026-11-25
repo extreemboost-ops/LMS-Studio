@@ -3,6 +3,7 @@ import { WorkspaceController } from "./workspace.controller.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { resolveTenantContext } from "../../middlewares/tenantContext.js";
 import { requirePermission } from "../../middlewares/rbac.js";
+import { enforceWorkspaceQuota } from "../../middlewares/entitlements.js";
 import { validateRequest } from "../../middlewares/validateRequest.js";
 import { createWorkspaceSchema } from "./workspace.schema.js";
 
@@ -15,6 +16,7 @@ router.get("/workspaces", WorkspaceController.list);
 router.post(
   "/workspaces",
   requirePermission("workspace:create"),
+  enforceWorkspaceQuota,
   validateRequest({ body: createWorkspaceSchema }),
   WorkspaceController.create
 );

@@ -1,5 +1,6 @@
 import { AppProvider, useApp } from "./context/AppContext";
 import { AuthProvider } from "./context/AuthContext";
+import { BrandingProvider } from "./context/BrandingContext";
 import { ContentProvider } from "./context/ContentContext";
 import { Sidebar } from "./components/navigation/Sidebar";
 import { Topbar } from "./components/navigation/Topbar";
@@ -20,6 +21,8 @@ import { Integrations } from "./features/lms-integrations/Integrations";
 import { Analytics } from "./features/analytics/Analytics";
 import { Team } from "./features/team/Team";
 import { SettingsScreen } from "./features/settings/SettingsScreen";
+import { DistributorHub } from "./features/distributor/DistributorHub";
+import { SuperAdminConsole } from "./features/super-admin/SuperAdminConsole";
 import { Help } from "./features/help/Help";
 
 function AppShell() {
@@ -56,6 +59,8 @@ function AppShell() {
           {route === "integrations" && <Integrations />}
           {route === "analytics" && <Analytics />}
           {route === "team" && <Team />}
+          {route === "distributor" && <DistributorHub />}
+          {route === "super-admin" && <SuperAdminConsole />}
           {route === "settings" && <SettingsScreen />}
           {route === "help" && <Help />}
         </main>
@@ -70,13 +75,15 @@ function AppShell() {
 
 export function App() {
   return (
-    <AuthProvider>
-      <AppProvider>
-        <ContentProvider>
-          <AppShell />
-        </ContentProvider>
-      </AppProvider>
-    </AuthProvider>
+    <BrandingProvider>
+      <AuthProvider>
+        <AppProvider>
+          <ContentProvider>
+            <AppShell />
+          </ContentProvider>
+        </AppProvider>
+      </AuthProvider>
+    </BrandingProvider>
   );
 }
 

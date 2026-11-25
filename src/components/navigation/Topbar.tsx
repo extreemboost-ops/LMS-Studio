@@ -16,6 +16,8 @@ const routeTitles: Record<Route, string> = {
   integrations: "LMS Integrations",
   analytics: "Analytics",
   team: "Team Members",
+  distributor: "Distributor Hub",
+  "super-admin": "SaaS Command",
   settings: "Settings",
   help: "Help & Support",
 };

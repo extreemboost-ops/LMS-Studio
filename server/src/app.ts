@@ -28,8 +28,15 @@ export function createApp(): Express {
   // Global rate limiter
   app.use(rateLimiter);
 
-  // Body parsers & cookie parsing
-  app.use(express.json({ limit: "10mb" }));
+  // Body parsers & cookie parsing (preserve rawBody for Stripe webhook signature verification)
+  app.use(
+    express.json({
+      limit: "10mb",
+      verify: (req, _res, buf) => {
+        (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+      },
+    })
+  );
   app.use(express.urlencoded({ extended: true, limit: "10mb" }));
   app.use(cookieParser());
 

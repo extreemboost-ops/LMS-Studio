@@ -27,6 +27,11 @@ import { runAuthoringCanvasTests } from "./authoring-canvas.test.js";
 import { runCloudStorageExportTests } from "./cloud-storage-export.test.js";
 import { runAnalyticsAuditComplianceTests } from "./analytics-audit-compliance.test.js";
 import { runSystemE2ETests } from "./e2e-system-integration.test.js";
+import { runSaasEntitlementsTests } from "./saas-entitlements.test.js";
+import { runBillingStripeLicenseTests } from "./billing-stripe-license.test.js";
+import { runDistributorHubTests } from "./distributor-hub.test.js";
+import { runWhiteLabelBrandingTests } from "./white-label-branding.test.js";
+import { runSaasDistributorE2ESecurityTests } from "./saas-distributor-e2e-security.test.js";
 import { disconnectPrisma } from "../src/database/prisma.js";
 
 async function main() {
@@ -276,6 +281,81 @@ async function main() {
     status: e2ePassed ? "PASS" : "FAIL",
   });
   console.log(`  -> ${e2ePassed ? "✔ PASS" : "✖ FAIL"}: ${e2eResult.passed} passed, ${e2eResult.failed} failed\n`);
+
+  // Suite 30: SaaS Plans, Entitlements & Quota Engine (Phase 08.1)
+  console.log("Running Suite 30: SaaS Plans, Entitlements & Quota Engine (Phase 08.1)...");
+  const saasResult = await runSaasEntitlementsTests();
+  const saasPassed = saasResult.failed === 0;
+  if (!saasPassed) {
+    saasResult.results.filter(r => !r.passed).forEach(r => console.log(`    ❌ FAILED ASSERTION: [${r.name}] -> ${r.error}`));
+  }
+  results.push({
+    name: "SaaS Plans, Entitlements & Quota Engine",
+    passed: saasPassed,
+    message: `${saasResult.passed} passed, ${saasResult.failed} failed`,
+    status: saasPassed ? "PASS" : "FAIL",
+  });
+  console.log(`  -> ${saasPassed ? "✔ PASS" : "✖ FAIL"}: ${saasResult.passed} passed, ${saasResult.failed} failed\n`);
+
+  // Suite 31: Stripe Billing, Webhook Security & B2B License Keys (Phase 08.2)
+  console.log("Running Suite 31: Stripe Billing, Webhook Security & B2B License Keys (Phase 08.2)...");
+  const billingResult = await runBillingStripeLicenseTests();
+  const billingPassed = billingResult.failed === 0;
+  if (!billingPassed) {
+    billingResult.results.filter(r => !r.passed).forEach(r => console.log(`    ❌ FAILED ASSERTION: [${r.name}] -> ${r.error}`));
+  }
+  results.push({
+    name: "Stripe Billing, Webhook Security & B2B License Keys",
+    passed: billingPassed,
+    message: `${billingResult.passed} passed, ${billingResult.failed} failed`,
+    status: billingPassed ? "PASS" : "FAIL",
+  });
+  console.log(`  -> ${billingPassed ? "✔ PASS" : "✖ FAIL"}: ${billingResult.passed} passed, ${billingResult.failed} failed\n`);
+
+  // Suite 32: Distributor Hub, Client Provisioning & Cross-Distributor RLS (Phase 08.3)
+  console.log("Running Suite 32: Distributor Hub, Client Provisioning & Cross-Distributor RLS (Phase 08.3)...");
+  const distResult = await runDistributorHubTests();
+  const distPassed = distResult.failed === 0;
+  if (!distPassed) {
+    distResult.results.filter(r => !r.passed).forEach(r => console.log(`    ❌ FAILED ASSERTION: [${r.name}] -> ${r.error}`));
+  }
+  results.push({
+    name: "Distributor Hub, Client Provisioning & Cross-Distributor RLS",
+    passed: distPassed,
+    message: `${distResult.passed} passed, ${distResult.failed} failed`,
+    status: distPassed ? "PASS" : "FAIL",
+  });
+  console.log(`  -> ${distPassed ? "✔ PASS" : "✖ FAIL"}: ${distResult.passed} passed, ${distResult.failed} failed\n`);
+
+  // Suite 33: White-Label Branding & Custom Domain Engine (Phase 08.4)
+  console.log("Running Suite 33: White-Label Branding & Custom Domain Engine (Phase 08.4)...");
+  const brandResult = await runWhiteLabelBrandingTests();
+  const brandPassed = brandResult.failed === 0;
+  if (!brandPassed) {
+    brandResult.results.filter(r => !r.passed).forEach(r => console.log(`    ❌ FAILED ASSERTION: [${r.name}] -> ${r.error}`));
+  }
+  results.push({
+    name: "White-Label Branding & Custom Domain Engine",
+    passed: brandPassed,
+    message: `${brandResult.passed} passed, ${brandResult.failed} failed`,
+    status: brandPassed ? "PASS" : "FAIL",
+  });
+  console.log(`  -> ${brandPassed ? "✔ PASS" : "✖ FAIL"}: ${brandResult.passed} passed, ${brandResult.failed} failed\n`);
+
+  // Suite 34: Final SaaS & Distributor Security Gate (Phase 08.6)
+  console.log("Running Suite 34: Final SaaS & Distributor Security Gate (Phase 08.6)...");
+  const gateResult = await runSaasDistributorE2ESecurityTests();
+  const gatePassed = gateResult.failed === 0;
+  if (!gatePassed) {
+    gateResult.results.filter(r => !r.passed).forEach(r => console.log(`    ❌ FAILED ASSERTION: [${r.name}] -> ${r.error}`));
+  }
+  results.push({
+    name: "Final SaaS & Distributor Security Gate",
+    passed: gatePassed,
+    message: `${gateResult.passed} passed, ${gateResult.failed} failed`,
+    status: gatePassed ? "PASS" : "FAIL",
+  });
+  console.log(`  -> ${gatePassed ? "✔ PASS" : "✖ FAIL"}: ${gateResult.passed} passed, ${gateResult.failed} failed\n`);
 
   // Disconnect any active connections
   await disconnectPrisma();

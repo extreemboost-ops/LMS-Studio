@@ -11,6 +11,8 @@ import {
   UsersRound,
   Settings,
   CircleHelp,
+  Building2,
+  ShieldCheck,
   Video,
   Presentation,
   SquareStack,
@@ -47,6 +49,8 @@ export const navGroups: NavGroup[] = [
     label: "Workspace",
     items: [
       { id: "team", label: "Team Members", icon: UsersRound },
+      { id: "distributor", label: "Distributor Hub", icon: Building2 },
+      { id: "super-admin", label: "SaaS Command", icon: ShieldCheck },
       { id: "settings", label: "Settings", icon: Settings },
       { id: "help", label: "Help & Support", icon: CircleHelp },
     ],

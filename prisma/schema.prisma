@@ -157,6 +157,60 @@ enum AttemptStatus {
   FAILED
 }
 
+enum SubscriptionStatus {
+  TRIALING
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+  SUSPENDED
+}
+
+enum BillingCycle {
+  MONTHLY
+  ANNUAL
+  LIFETIME_KEY
+}
+
+enum LicenseKeyStatus {
+  UNUSED
+  REDEEMED
+  REVOKED
+  EXPIRED
+}
+
+enum DistributorStatus {
+  PENDING
+  ACTIVE
+  SUSPENDED
+  REJECTED
+}
+
+enum DistributorBillingMode {
+  REV_SHARE
+  WHOLESALE_POOL
+  HYBRID
+}
+
+enum DistributorRole {
+  PARTNER_OWNER
+  PARTNER_ADMIN
+  SALES_AGENT
+}
+
+enum CommissionStatus {
+  PENDING
+  AVAILABLE
+  PAID
+  CLAWBACK
+}
+
+enum PayoutStatus {
+  REQUESTED
+  APPROVED
+  PAID
+  REJECTED
+}
+
 enum Priority {
   LOW
   NORMAL
@@ -182,6 +236,7 @@ model Organization {
   plan              String   @default("business") @db.VarChar(50)
   storageQuotaBytes BigInt   @default(107374182400) // 100 GB default
   isActive          Boolean  @default(true)
+  distributorId     String?  @map("distributor_id") @db.Uuid
   createdAt         DateTime @default(now()) @map("created_at")
   updatedAt         DateTime @updatedAt @map("updated_at")
 
@@ -201,7 +256,12 @@ model Organization {
   storageUsages     StorageUsage[]
   h5pPackageImports H5PPackageImport[]
   invitations       OrganizationInvitation[]
+  subscription      Subscription?
+  usageMeters       UsageMeter[]
+  redeemedLicenses  LicenseKey[]
+  distributor       Distributor? @relation(fields: [distributorId], references: [id], onDelete: SetNull)
 
+  @@index([distributorId])
   @@map("organizations")
 }
 
@@ -232,6 +292,7 @@ model User {
   importedH5Ps            H5PPackageImport[]       @relation("ImportUploader")
   notifications           Notification[]
   auditLogs               AuditLog[]
+  distributorMemberships  DistributorMember[]
 
   @@map("users")
 }
@@ -1223,4 +1284,196 @@ model StorageUsage {
 
   @@index([organizationId, recordedAt])
   @@map("storage_usages")
+}
+
+// ==============================================================================
+// 9. SAAS COMMERCIALIZATION, PLANS & ENTITLEMENTS (PHASE 08.1)
+// ==============================================================================
+
+model SaaSPlan {
+  id                   String   @id @default(uuid()) @db.Uuid
+  code                 String   @unique @db.VarChar(50) // "trial", "starter", "pro", "business", "enterprise"
+  name                 String   @db.VarChar(100)
+  description          String?  @db.Text
+  monthlyPriceCents    Int      @default(0) @map("monthly_price_cents")
+  annualPriceCents     Int      @default(0) @map("annual_price_cents")
+  currency             String   @default("usd") @db.VarChar(10)
+  maxSeats             Int      @default(5) @map("max_seats")
+  maxWorkspaces        Int      @default(1) @map("max_workspaces")
+  maxMonthlyExports    Int      @default(25) @map("max_monthly_exports")
+  storageQuotaBytes    BigInt   @default(5368709120) @map("storage_quota_bytes") // 5 GB default
+  features             Json     @default("{}") @db.JsonB
+  stripeMonthlyPriceId String?  @map("stripe_monthly_price_id") @db.VarChar(100)
+  stripeAnnualPriceId  String?  @map("stripe_annual_price_id") @db.VarChar(100)
+  isPublic             Boolean  @default(true) @map("is_public")
+  isActive             Boolean  @default(true) @map("is_active")
+  sortOrder            Int      @default(0) @map("sort_order")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  subscriptions Subscription[]
+  licenseKeys   LicenseKey[]
+
+  @@map("saas_plans")
+}
+
+model Subscription {
+  id                   String             @id @default(uuid()) @db.Uuid
+  organizationId       String             @unique @map("organization_id") @db.Uuid
+  planId               String             @map("plan_id") @db.Uuid
+  distributorId        String?            @map("distributor_id") @db.Uuid
+  status               SubscriptionStatus @default(TRIALING)
+  billingCycle         BillingCycle       @default(MONTHLY) @map("billing_cycle")
+  seatCount            Int                @default(1) @map("seat_count")
+  trialEndsAt          DateTime?          @map("trial_ends_at")
+  currentPeriodStart   DateTime           @default(now()) @map("current_period_start")
+  currentPeriodEnd     DateTime           @map("current_period_end")
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  stripeCustomerId     String?            @map("stripe_customer_id") @db.VarChar(100)
+  stripeSubscriptionId String?            @unique @map("stripe_subscription_id") @db.VarChar(100)
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  plan         SaaSPlan     @relation(fields: [planId], references: [id], onDelete: Restrict)
+  distributor  Distributor? @relation(fields: [distributorId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([distributorId])
+  @@map("subscriptions")
+}
+
+model UsageMeter {
+  id               String   @id @default(uuid()) @db.Uuid
+  organizationId   String   @map("organization_id") @db.Uuid
+  periodKey        String   @map("period_key") @db.VarChar(7) // YYYY-MM
+  exportsCount     Int      @default(0) @map("exports_count")
+  lmsSyncCount     Int      @default(0) @map("lms_sync_count")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, periodKey])
+  @@map("usage_meters")
+}
+
+model LicenseKey {
+  id              String           @id @default(uuid()) @db.Uuid
+  codeHash        String           @unique @map("code_hash") @db.VarChar(255)
+  codePrefix      String           @map("code_prefix") @db.VarChar(24)
+  planId          String           @map("plan_id") @db.Uuid
+  distributorId   String?          @map("distributor_id") @db.Uuid
+  seatCount       Int              @default(5) @map("seat_count")
+  durationDays    Int              @default(365) @map("duration_days")
+  status          LicenseKeyStatus @default(UNUSED)
+  issuedByUserId  String?          @map("issued_by_user_id") @db.Uuid
+  redeemedByOrgId String?          @map("redeemed_by_org_id") @db.Uuid
+  redeemedAt      DateTime?        @map("redeemed_at")
+  expiresAt       DateTime?        @map("expires_at")
+  notes           String?          @db.VarChar(255)
+  createdAt       DateTime         @default(now()) @map("created_at")
+  updatedAt       DateTime         @updatedAt @map("updated_at")
+
+  plan          SaaSPlan      @relation(fields: [planId], references: [id], onDelete: Restrict)
+  redeemedByOrg Organization? @relation(fields: [redeemedByOrgId], references: [id], onDelete: SetNull)
+  distributor   Distributor?  @relation(fields: [distributorId], references: [id], onDelete: SetNull)
+
+  @@index([status])
+  @@index([redeemedByOrgId])
+  @@index([distributorId])
+  @@map("license_keys")
+}
+
+model BillingWebhookEvent {
+  id              String   @id @default(uuid()) @db.Uuid
+  provider        String   @default("stripe") @db.VarChar(30)
+  externalEventId String   @unique @map("external_event_id") @db.VarChar(120)
+  eventType       String   @map("event_type") @db.VarChar(100)
+  processedAt     DateTime @default(now()) @map("processed_at")
+
+  @@map("billing_webhook_events")
+}
+
+// ==============================================================================
+// 10. DISTRIBUTOR HUB & RESELLER GOVERNANCE (PHASE 08.3)
+// ==============================================================================
+
+model Distributor {
+  id                       String                 @id @default(uuid()) @db.Uuid
+  name                     String                 @db.VarChar(200)
+  slug                     String                 @unique @db.VarChar(100)
+  status                   DistributorStatus      @default(PENDING)
+  billingMode              DistributorBillingMode @default(REV_SHARE) @map("billing_mode")
+  commissionPercent        Decimal                @default(25.00) @map("commission_percent") @db.Decimal(5, 2)
+  wholesaleDiscountPercent Decimal                @default(20.00) @map("wholesale_discount_percent") @db.Decimal(5, 2)
+  seatPoolTotal            Int                    @default(0) @map("seat_pool_total")
+  seatPoolUsed             Int                    @default(0) @map("seat_pool_used")
+  creditBalanceCents       Int                    @default(0) @map("credit_balance_cents")
+  contactEmail             String                 @map("contact_email") @db.VarChar(255)
+  companyWebsite           String?                @map("company_website") @db.VarChar(255)
+  customDomain             String?                @unique @map("custom_domain") @db.VarChar(255)
+  brandingConfig           Json                   @default("{}") @map("branding_config") @db.JsonB
+  payoutDetailsEncrypted   Json?                  @map("payout_details_encrypted") @db.JsonB
+  createdAt                DateTime               @default(now()) @map("created_at")
+  updatedAt                DateTime               @updatedAt @map("updated_at")
+
+  members        DistributorMember[]
+  organizations  Organization[]
+  subscriptions  Subscription[]
+  licenseKeys    LicenseKey[]
+  commissions    CommissionLedger[]
+  payoutRequests PayoutRequest[]
+
+  @@index([status])
+  @@map("distributors")
+}
+
+model DistributorMember {
+  id            String           @id @default(uuid()) @db.Uuid
+  distributorId String           @map("distributor_id") @db.Uuid
+  userId        String           @map("user_id") @db.Uuid
+  role          DistributorRole  @default(PARTNER_OWNER)
+  status        MembershipStatus @default(ACTIVE)
+  createdAt     DateTime         @default(now()) @map("created_at")
+
+  distributor Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+  user        User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([distributorId, userId])
+  @@index([userId])
+  @@map("distributor_members")
+}
+
+model CommissionLedger {
+  id                String           @id @default(uuid()) @db.Uuid
+  distributorId     String           @map("distributor_id") @db.Uuid
+  organizationId    String           @map("organization_id") @db.Uuid
+  subscriptionId    String?          @map("subscription_id") @db.Uuid
+  grossAmountCents  Int              @map("gross_amount_cents")
+  commissionPercent Decimal          @map("commission_percent") @db.Decimal(5, 2)
+  commissionCents   Int              @map("commission_cents")
+  status            CommissionStatus @default(AVAILABLE)
+  description       String           @db.VarChar(255)
+  createdAt         DateTime         @default(now()) @map("created_at")
+
+  distributor Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@index([distributorId, status])
+  @@map("commission_ledger")
+}
+
+model PayoutRequest {
+  id                String       @id @default(uuid()) @db.Uuid
+  distributorId     String       @map("distributor_id") @db.Uuid
+  requestedByUserId String       @map("requested_by_user_id") @db.Uuid
+  amountCents       Int          @map("amount_cents")
+  status            PayoutStatus @default(REQUESTED)
+  referenceNote     String?      @map("reference_note") @db.VarChar(255)
+  processedAt       DateTime?    @map("processed_at")
+  createdAt         DateTime     @default(now()) @map("created_at")
+
+  distributor Distributor @relation(fields: [distributorId], references: [id], onDelete: Cascade)
+
+  @@index([distributorId, status])
+  @@map("payout_requests")
 }

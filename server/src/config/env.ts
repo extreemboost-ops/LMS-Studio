@@ -31,6 +31,9 @@ const envSchema = z.object({
   SMTP_USER: z.string().optional(),
   SMTP_PASS: z.string().optional(),
   SMTP_FROM: z.string().default("noreply@scorm-h5p-studio.local"),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  APP_PUBLIC_URL: z.string().default("http://localhost:5173"),
 });
 
 export type Env = z.infer<typeof envSchema>;

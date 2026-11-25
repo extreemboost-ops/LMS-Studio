@@ -181,6 +181,36 @@ export class ApiClient {
     }
   }
 
+  static async patch<T, B = unknown>(endpoint: string, body: B, mockFallback?: T): Promise<ApiResponse<T>> {
+    try {
+      const res = await fetch(`${this.baseUrl}${endpoint}`, {
+        method: "PATCH",
+        headers: this.buildHeaders(),
+        body: JSON.stringify(body),
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        if (mockFallback !== undefined && res.status >= 500) {
+          return { success: true, data: mockFallback, timestamp: new Date().toISOString() };
+        }
+        const errorData = await res.json().catch(() => ({}));
+        throw {
+          status: res.status,
+          message: errorData.error?.message || `Request failed with status ${res.status}`,
+          code: errorData.error?.code,
+        } as ApiError;
+      }
+
+      return await res.json();
+    } catch (err) {
+      if (mockFallback !== undefined) {
+        return { success: true, data: mockFallback, timestamp: new Date().toISOString() };
+      }
+      throw err;
+    }
+  }
+
   static async delete<T>(endpoint: string, mockFallback?: T): Promise<ApiResponse<T>> {
     try {
       const res = await fetch(`${this.baseUrl}${endpoint}`, {

@@ -6,6 +6,7 @@ import { AppError } from "../../utils/appError.js";
 import { emailProvider } from "../../utils/emailProvider.js";
 import { env } from "../../config/env.js";
 import { SYSTEM_ROLES, ROLE_PERMISSION_MATRIX, SYSTEM_PERMISSIONS } from "../../database/rbac-definitions.js";
+import { ensureDefaultPlans, getDefaultPlanDefinition } from "../billing/plans.catalog.js";
 import type { RegisterInput, LoginInput, ResetPasswordInput } from "./auth.schema.js";
 
 export class AuthService {
@@ -51,15 +52,37 @@ export class AuthService {
         },
       });
 
-      // 4b. Create Organization
+      // 4b. Ensure SaaS Plans exist & Create Organization on 14-day Trial
+      await ensureDefaultPlans(tx);
+      const trialDef = getDefaultPlanDefinition("trial");
+      const trialPlan = await tx.saaSPlan.findUnique({ where: { code: "trial" } });
+
       const organization = await tx.organization.create({
         data: {
           name: orgName,
           slug: orgSlug,
-          plan: "business",
+          plan: "trial",
+          storageQuotaBytes: trialDef.storageQuotaBytes,
           isActive: true,
         },
       });
+
+      if (trialPlan) {
+        const now = new Date();
+        const trialEndsAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
+        await tx.subscription.create({
+          data: {
+            organizationId: organization.id,
+            planId: trialPlan.id,
+            status: "TRIALING",
+            billingCycle: "MONTHLY",
+            seatCount: 1,
+            trialEndsAt,
+            currentPeriodStart: now,
+            currentPeriodEnd: trialEndsAt,
+          },
+        });
+      }
 
       // 4c. Create Default Workspace
       const workspace = await tx.workspace.create({

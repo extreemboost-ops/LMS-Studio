@@ -1,8 +1,9 @@
 import { useState } from "react";
-import { UserRound, Boxes, UsersRound, ShieldCheck, HardDrive, LockKeyhole, ChevronRight, Settings } from "lucide-react";
+import { UserRound, Boxes, UsersRound, ShieldCheck, HardDrive, LockKeyhole, CreditCard, ChevronRight, Settings } from "lucide-react";
 import { useApp } from "../../context/AppContext";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ToggleRow } from "../../components/ui/ToggleRow";
+import { BillingSettingsPanel } from "./BillingSettingsPanel";
 import { currentUserProfile } from "../../mocks/team.mock";
 
 export function SettingsScreen() {
@@ -13,6 +14,7 @@ export function SettingsScreen() {
   const tabs: [string, typeof UserRound][] = [
     ["Profile", UserRound],
     ["Organization", Boxes],
+    ["Billing & Plan", CreditCard],
     ["Team", UsersRound],
     ["Roles & permissions", ShieldCheck],
     ["Storage", HardDrive],
@@ -56,7 +58,9 @@ export function SettingsScreen() {
             </p>
           </div>
 
-          {tab === "Profile" ? (
+          {tab === "Billing & Plan" ? (
+            <BillingSettingsPanel />
+          ) : tab === "Profile" ? (
             <>
               <div className="profile-photo">
                 <div className="avatar big">{profile.avatarText}</div>

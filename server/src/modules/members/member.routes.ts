@@ -3,6 +3,7 @@ import { MemberController } from "./member.controller.js";
 import { requireAuth } from "../../middlewares/auth.js";
 import { resolveTenantContext } from "../../middlewares/tenantContext.js";
 import { requirePermission } from "../../middlewares/rbac.js";
+import { enforceSeatQuota } from "../../middlewares/entitlements.js";
 import { validateRequest } from "../../middlewares/validateRequest.js";
 import { inviteMemberSchema, acceptInvitationSchema } from "./member.schema.js";
 
@@ -16,6 +17,7 @@ memberRouter.get("/members", MemberController.list);
 memberRouter.post(
   "/invitations",
   requirePermission("org:invite", "org:manage_members"),
+  enforceSeatQuota,
   validateRequest({ body: inviteMemberSchema }),
   MemberController.invite
 );
