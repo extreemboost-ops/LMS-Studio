@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ArrowLeft,
   Boxes,
@@ -47,6 +47,7 @@ export function AuthoringWorkspace() {
     activeSlideId,
     setActiveSlideId,
     addSlide,
+    updateSlide,
     deleteSlide,
     activeElementId,
     setActiveElementId,
@@ -71,6 +72,7 @@ export function AuthoringWorkspace() {
   const [selectedHotspotNum, setSelectedHotspotNum] = useState<number | null>(1);
   const [canvasZoom, setCanvasZoom] = useState<CanvasZoom>("80%");
   const [activeTool, setActiveTool] = useState<CanvasTool>("pointer");
+  const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   // Resolve current active slide
   const currentSlide = slides.find((s) => s.id === activeSlideId) || slides[0] || {
@@ -180,6 +182,22 @@ export function AuthoringWorkspace() {
     setActiveTool("pointer");
     notify("Image placeholder element added to slide");
   };
+
+  const handleReplaceMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const sizeMb = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    updateSlideElement(currentSlide.id, activeElement.id, {
+      mediaFile: file.name,
+      mediaSize: sizeMb,
+    });
+    notify(`Replaced media with ${file.name}`);
+    e.target.value = "";
+  };
+
+  const selectedHotspot = (activeElement.hotspots || []).find(
+    (hs) => hs.number === selectedHotspotNum
+  );
 
   const zoomScale =
     canvasZoom === "50%"
@@ -503,78 +521,243 @@ export function AuthoringWorkspace() {
 
               <div className="canvas-content">
                 <span className="lesson-label">LESSON 0{currentSlide.num}</span>
-                <h1>{currentSlide.title}</h1>
-                <p>{currentSlide.subtitle || "Learn how to spot common hazards before they lead to an incident."}</p>
-
-                {/* Interactive Video Element Canvas */}
-                <div
-                  className="interactive-video selected-element"
+                <input
+                  value={currentSlide.title}
+                  onChange={(e) => updateSlide(currentSlide.id, { title: e.target.value })}
+                  aria-label="Slide title"
                   style={{
-                    borderRadius: `${activeElement.cornerRadius ?? 12}px`,
-                    boxShadow: activeElement.showShadow ? "0 20px 40px rgba(0,0,0,0.4)" : "none",
-                    border: activeElement.showBorder ? "2px solid #3b82f6" : "2px solid #2563eb",
+                    width: "100%",
+                    border: "1px dashed transparent",
+                    background: "transparent",
+                    fontSize: "24px",
+                    fontWeight: 700,
+                    color: "#0f172a",
+                    padding: "2px 4px",
+                    marginLeft: "-4px",
+                    borderRadius: "6px",
+                    outline: "none",
                   }}
-                >
-                  <div className="video-scene">
-                    <div className="scene-desk" />
-                    <div className="scene-window" />
-                    <div className="scene-person" />
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#93c5fd")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "transparent")}
+                />
+                <input
+                  value={
+                    currentSlide.subtitle ??
+                    "Learn how to spot common hazards before they lead to an incident."
+                  }
+                  onChange={(e) => updateSlide(currentSlide.id, { subtitle: e.target.value })}
+                  aria-label="Slide subtitle"
+                  placeholder="Enter slide subtitle or learning objective..."
+                  style={{
+                    width: "100%",
+                    border: "1px dashed transparent",
+                    background: "transparent",
+                    fontSize: "13px",
+                    color: "#64748b",
+                    padding: "2px 4px",
+                    marginLeft: "-4px",
+                    marginBottom: "10px",
+                    borderRadius: "6px",
+                    outline: "none",
+                  }}
+                  onFocus={(e) => (e.currentTarget.style.borderColor = "#93c5fd")}
+                  onBlur={(e) => (e.currentTarget.style.borderColor = "transparent")}
+                />
 
-                    {/* Hotspot Interactions */}
-                    {(activeElement.hotspots || []).map((hs, idx) => {
-                      const hotspotClass = idx === 0 ? "h1" : idx === 1 ? "h2" : idx === 2 ? "h3" : "";
-                      return (
-                        <button
-                          key={hs.id}
-                          className={`hotspot ${hotspotClass} ${selectedHotspotNum === hs.number ? "active" : ""}`}
-                          onClick={() => handleHotspotClick(hs.number, hs.label)}
-                          title={hs.label}
-                          type="button"
-                        >
-                          {hs.number}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <button
-                    className="play-button"
-                    onClick={() => setPlaying(!playing)}
-                    type="button"
-                    aria-label={playing ? "Pause" : "Play"}
+                {/* Render all elements on current slide */}
+                {currentSlide.elements.length === 0 ? (
+                  <div
+                    style={{
+                      padding: "36px 20px",
+                      border: "2px dashed #cbd5e1",
+                      borderRadius: "12px",
+                      textAlign: "center",
+                      color: "#64748b",
+                      fontSize: "13px",
+                    }}
                   >
-                    {playing ? (
-                      <Pause size={22} fill="currentColor" />
-                    ) : (
-                      <Play size={22} fill="currentColor" />
-                    )}
-                  </button>
-
-                  <div className="video-controls">
-                    <span>{playing ? "00:18" : "00:00"}</span>
-                    <div>
-                      <i style={{ width: playing ? "34%" : "0%" }} />
-                    </div>
-                    <span>{activeElement.mediaDuration || "00:54"}</span>
-                    <button
-                      type="button"
-                      onClick={() => notify("Video playback configuration")}
-                      style={{ background: "none", border: "none", color: "inherit", cursor: "pointer", display: "grid", placeItems: "center" }}
-                    >
-                      <Settings size={14} />
-                    </button>
+                    This slide has no elements yet. Use the toolbar above to add a Text block, Image, or Interactive Video.
                   </div>
+                ) : (
+                  currentSlide.elements.map((el) => {
+                    const isSelected = el.id === activeElement.id;
 
-                  <div className="selection-label">{activeElement.name || "Interactive video"}</div>
-                  <i className="handle tl" />
-                  <i className="handle tr" />
-                  <i className="handle bl" />
-                  <i className="handle br" />
-                </div>
+                    if (el.type === "text") {
+                      return (
+                        <div
+                          key={el.id}
+                          onClick={() => setActiveElementId(el.id)}
+                          style={{
+                            position: "relative",
+                            padding: "14px 16px",
+                            marginBottom: "12px",
+                            borderRadius: `${el.cornerRadius ?? 8}px`,
+                            border: isSelected ? "2px solid #2563eb" : "1px solid #e2e8f0",
+                            background: "#ffffff",
+                            boxShadow: el.showShadow ? "0 8px 24px rgba(15,23,42,0.08)" : "none",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <textarea
+                            value={el.textContent || ""}
+                            onChange={(e) =>
+                              updateSlideElement(currentSlide.id, el.id, {
+                                textContent: e.target.value,
+                              })
+                            }
+                            placeholder="Type slide text content here..."
+                            rows={3}
+                            style={{
+                              width: "100%",
+                              border: "none",
+                              outline: "none",
+                              resize: "vertical",
+                              fontSize: "14px",
+                              lineHeight: 1.5,
+                              color: "#1e293b",
+                              background: "transparent",
+                              fontFamily: "inherit",
+                            }}
+                          />
+                        </div>
+                      );
+                    }
+
+                    if (el.type === "image") {
+                      return (
+                        <div
+                          key={el.id}
+                          onClick={() => setActiveElementId(el.id)}
+                          style={{
+                            padding: "18px",
+                            marginBottom: "12px",
+                            borderRadius: `${el.cornerRadius ?? 8}px`,
+                            border: isSelected ? "2px solid #2563eb" : "1px solid #e2e8f0",
+                            background: "#f8fafc",
+                            boxShadow: el.showShadow ? "0 8px 24px rgba(15,23,42,0.08)" : "none",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                            cursor: "pointer",
+                          }}
+                        >
+                          <ImagePlus size={22} color="#2563eb" />
+                          <div style={{ flex: 1 }}>
+                            <b style={{ fontSize: "13px", display: "block", color: "#0f172a" }}>
+                              {el.name} ({el.mediaFile || "image.png"})
+                            </b>
+                            <small style={{ fontSize: "12px", color: "#64748b" }}>
+                              {el.altText || "Click to edit image properties on the right panel"}
+                            </small>
+                          </div>
+                        </div>
+                      );
+                    }
+
+                    // Default: Interactive Video Element Canvas
+                    return (
+                      <div
+                        key={el.id}
+                        onClick={() => setActiveElementId(el.id)}
+                        className={`interactive-video ${isSelected ? "selected-element" : ""}`}
+                        style={{
+                          borderRadius: `${el.cornerRadius ?? 12}px`,
+                          boxShadow: el.showShadow ? "0 20px 40px rgba(0,0,0,0.4)" : "none",
+                          border: isSelected
+                            ? "2px solid #2563eb"
+                            : el.showBorder
+                            ? "2px solid #3b82f6"
+                            : "none",
+                          marginBottom: "12px",
+                        }}
+                      >
+                        <div className="video-scene">
+                          <div className="scene-desk" />
+                          <div className="scene-window" />
+                          <div className="scene-person" />
+
+                          {(el.hotspots || []).map((hs, idx) => {
+                            const hotspotClass =
+                              idx === 0 ? "h1" : idx === 1 ? "h2" : idx === 2 ? "h3" : "";
+                            return (
+                              <button
+                                key={hs.id}
+                                className={`hotspot ${hotspotClass} ${
+                                  selectedHotspotNum === hs.number ? "active" : ""
+                                }`}
+                                style={
+                                  idx > 2
+                                    ? { left: hs.left || "45%", top: hs.top || "45%" }
+                                    : undefined
+                                }
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setActiveElementId(el.id);
+                                  handleHotspotClick(hs.number, hs.label);
+                                }}
+                                title={hs.label}
+                                type="button"
+                              >
+                                {hs.number}
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        <button
+                          className="play-button"
+                          onClick={() => setPlaying(!playing)}
+                          type="button"
+                          aria-label={playing ? "Pause" : "Play"}
+                        >
+                          {playing ? (
+                            <Pause size={22} fill="currentColor" />
+                          ) : (
+                            <Play size={22} fill="currentColor" />
+                          )}
+                        </button>
+
+                        {(el.showControls ?? true) && (
+                          <div className="video-controls">
+                            <span>{playing ? "00:18" : "00:00"}</span>
+                            <div>
+                              <i style={{ width: playing ? "34%" : "0%" }} />
+                            </div>
+                            <span>{el.mediaDuration || "00:54"}</span>
+                            <button
+                              type="button"
+                              onClick={() => setRightOpen(true)}
+                              style={{
+                                background: "none",
+                                border: "none",
+                                color: "inherit",
+                                cursor: "pointer",
+                                display: "grid",
+                                placeItems: "center",
+                              }}
+                            >
+                              <Settings size={14} />
+                            </button>
+                          </div>
+                        )}
+
+                        {isSelected && (
+                          <>
+                            <div className="selection-label">{el.name || "Interactive video"}</div>
+                            <i className="handle tl" />
+                            <i className="handle tr" />
+                            <i className="handle bl" />
+                            <i className="handle br" />
+                          </>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
 
                 <div className="canvas-hint">
                   <MousePointer2 size={15} />
-                  <span>Select each hotspot to explore the workspace interactions.</span>
+                  <span>Click any title, text block, or hotspot to edit directly.</span>
                 </div>
               </div>
 
@@ -653,106 +836,277 @@ export function AuthoringWorkspace() {
             ))}
           </div>
 
+          <input
+            ref={mediaInputRef}
+            type="file"
+            accept="video/*,image/*,audio/*"
+            style={{ display: "none" }}
+            onChange={handleReplaceMedia}
+          />
+
           <div className="properties-scroll">
             {rightTab === "General" && (
               <>
-                <PropertySection title="Video source">
-                  <label>Media file</label>
-                  <div className="media-input">
-                    <div>
-                      <Film size={18} />
-                    </div>
-                    <span>
-                      <b>{activeElement.mediaFile || "office-safety.mp4"}</b>
-                      <small>{activeElement.mediaDuration || "54 sec"} · {activeElement.mediaSize || "18.4 MB"}</small>
-                    </span>
+                <PropertySection title="Slide details">
+                  <label>Slide title</label>
+                  <input
+                    value={currentSlide.title}
+                    onChange={(e) => updateSlide(currentSlide.id, { title: e.target.value })}
+                  />
+                  <label>Slide subtitle</label>
+                  <input
+                    value={currentSlide.subtitle || ""}
+                    placeholder="Learning objective or summary"
+                    onChange={(e) => updateSlide(currentSlide.id, { subtitle: e.target.value })}
+                  />
+                </PropertySection>
+
+                {activeElement.type === "text" ? (
+                  <PropertySection title="Text block">
+                    <label>Element name</label>
+                    <input
+                      value={activeElement.name || ""}
+                      onChange={(e) =>
+                        updateSlideElement(currentSlide.id, activeElement.id, {
+                          name: e.target.value,
+                        })
+                      }
+                    />
+                    <label>Text content</label>
+                    <textarea
+                      rows={5}
+                      value={activeElement.textContent || ""}
+                      onChange={(e) =>
+                        updateSlideElement(currentSlide.id, activeElement.id, {
+                          textContent: e.target.value,
+                        })
+                      }
+                      placeholder="Enter text content..."
+                    />
                     <button
                       type="button"
-                      onClick={() => notify("Media asset picker opened")}
+                      className="btn secondary full"
+                      onClick={() => {
+                        removeSlideElement(currentSlide.id, activeElement.id);
+                        notify("Element removed");
+                      }}
                     >
-                      Replace
+                      <Trash2 size={14} /> Remove text block
                     </button>
-                  </div>
-                  <label>Alternative text</label>
-                  <textarea
-                    value={activeElement.altText || ""}
-                    onChange={(e) =>
-                      updateSlideElement(currentSlide.id, activeElement.id, {
-                        altText: e.target.value,
-                      })
-                    }
-                    placeholder="Describe the visual content for screen readers."
-                  />
-                  <span className="field-help">
-                    Describe the visual content for screen readers.
-                  </span>
-                </PropertySection>
-
-                <PropertySection title="Playback">
-                  <ToggleRow
-                    label="Show controls"
-                    checked={activeElement.showControls ?? true}
-                    onChange={(val) =>
-                      updateSlideElement(currentSlide.id, activeElement.id, {
-                        showControls: val,
-                      })
-                    }
-                  />
-                  <ToggleRow
-                    label="Autoplay"
-                    checked={activeElement.autoplay ?? false}
-                    onChange={(val) =>
-                      updateSlideElement(currentSlide.id, activeElement.id, {
-                        autoplay: val,
-                      })
-                    }
-                  />
-                  <ToggleRow
-                    label="Allow seeking"
-                    checked={activeElement.allowSeeking ?? true}
-                    onChange={(val) =>
-                      updateSlideElement(currentSlide.id, activeElement.id, {
-                        allowSeeking: val,
-                      })
-                    }
-                  />
-                  <ToggleRow
-                    label="Loop video"
-                    checked={activeElement.loopVideo ?? false}
-                    onChange={(val) =>
-                      updateSlideElement(currentSlide.id, activeElement.id, {
-                        loopVideo: val,
-                      })
-                    }
-                  />
-                </PropertySection>
-
-                <PropertySection title="Interactive elements">
-                  <div className="element-list">
-                    {(activeElement.hotspots || []).map((hs) => (
-                      <button
-                        key={hs.id}
-                        type="button"
-                        onClick={() => setSelectedHotspotNum(hs.number)}
-                        style={{
-                          outline: selectedHotspotNum === hs.number ? "2px solid #2563eb" : "none",
-                        }}
-                      >
-                        <span>{hs.number}</span>
-                        <b>{hs.label}</b>
-                        <GripVertical size={14} />
+                  </PropertySection>
+                ) : activeElement.type === "image" ? (
+                  <PropertySection title="Image source">
+                    <label>Element name</label>
+                    <input
+                      value={activeElement.name || ""}
+                      onChange={(e) =>
+                        updateSlideElement(currentSlide.id, activeElement.id, {
+                          name: e.target.value,
+                        })
+                      }
+                    />
+                    <label>Image file</label>
+                    <div className="media-input">
+                      <div>
+                        <ImagePlus size={18} />
+                      </div>
+                      <span>
+                        <b>{activeElement.mediaFile || "image.png"}</b>
+                        <small>{activeElement.mediaSize || "Ready"}</small>
+                      </span>
+                      <button type="button" onClick={() => mediaInputRef.current?.click()}>
+                        Replace
                       </button>
-                    ))}
-                  </div>
-                  <button
-                    className="btn secondary full"
-                    onClick={handleAddHotspotClick}
-                    type="button"
-                  >
-                    <Plus size={14} />
-                    Add interaction
-                  </button>
-                </PropertySection>
+                    </div>
+                    <label>Alternative text</label>
+                    <textarea
+                      value={activeElement.altText || ""}
+                      onChange={(e) =>
+                        updateSlideElement(currentSlide.id, activeElement.id, {
+                          altText: e.target.value,
+                        })
+                      }
+                    />
+                    <button
+                      type="button"
+                      className="btn secondary full"
+                      onClick={() => {
+                        removeSlideElement(currentSlide.id, activeElement.id);
+                        notify("Image removed");
+                      }}
+                    >
+                      <Trash2 size={14} /> Remove image
+                    </button>
+                  </PropertySection>
+                ) : (
+                  <>
+                    <PropertySection title="Video source">
+                      <label>Media file</label>
+                      <div className="media-input">
+                        <div>
+                          <Film size={18} />
+                        </div>
+                        <span>
+                          <b>{activeElement.mediaFile || "office-safety.mp4"}</b>
+                          <small>
+                            {activeElement.mediaDuration || "54 sec"} ·{" "}
+                            {activeElement.mediaSize || "18.4 MB"}
+                          </small>
+                        </span>
+                        <button type="button" onClick={() => mediaInputRef.current?.click()}>
+                          Replace
+                        </button>
+                      </div>
+                      <label>Alternative text</label>
+                      <textarea
+                        value={activeElement.altText || ""}
+                        onChange={(e) =>
+                          updateSlideElement(currentSlide.id, activeElement.id, {
+                            altText: e.target.value,
+                          })
+                        }
+                        placeholder="Describe the visual content for screen readers."
+                      />
+                      <span className="field-help">
+                        Describe the visual content for screen readers.
+                      </span>
+                    </PropertySection>
+
+                    <PropertySection title="Playback">
+                      <ToggleRow
+                        label="Show controls"
+                        checked={activeElement.showControls ?? true}
+                        onChange={(val) =>
+                          updateSlideElement(currentSlide.id, activeElement.id, {
+                            showControls: val,
+                          })
+                        }
+                      />
+                      <ToggleRow
+                        label="Autoplay"
+                        checked={activeElement.autoplay ?? false}
+                        onChange={(val) =>
+                          updateSlideElement(currentSlide.id, activeElement.id, {
+                            autoplay: val,
+                          })
+                        }
+                      />
+                      <ToggleRow
+                        label="Allow seeking"
+                        checked={activeElement.allowSeeking ?? true}
+                        onChange={(val) =>
+                          updateSlideElement(currentSlide.id, activeElement.id, {
+                            allowSeeking: val,
+                          })
+                        }
+                      />
+                      <ToggleRow
+                        label="Loop video"
+                        checked={activeElement.loopVideo ?? false}
+                        onChange={(val) =>
+                          updateSlideElement(currentSlide.id, activeElement.id, {
+                            loopVideo: val,
+                          })
+                        }
+                      />
+                    </PropertySection>
+
+                    <PropertySection title="Interactive elements">
+                      <div className="element-list">
+                        {(activeElement.hotspots || []).map((hs) => (
+                          <button
+                            key={hs.id}
+                            type="button"
+                            onClick={() => setSelectedHotspotNum(hs.number)}
+                            style={{
+                              outline:
+                                selectedHotspotNum === hs.number ? "2px solid #2563eb" : "none",
+                            }}
+                          >
+                            <span>{hs.number}</span>
+                            <b>{hs.label}</b>
+                            <GripVertical size={14} />
+                          </button>
+                        ))}
+                      </div>
+
+                      {selectedHotspot && (
+                        <div
+                          style={{
+                            marginTop: "10px",
+                            padding: "10px",
+                            borderRadius: "8px",
+                            background: "#f8fafc",
+                            border: "1px solid #e2e8f0",
+                            display: "flex",
+                            flexDirection: "column",
+                            gap: "6px",
+                          }}
+                        >
+                          <label>Hotspot {selectedHotspot.number} label</label>
+                          <input
+                            value={selectedHotspot.label}
+                            onChange={(e) =>
+                              updateHotspot(currentSlide.id, activeElement.id, selectedHotspot.id, {
+                                label: e.target.value,
+                              })
+                            }
+                          />
+                          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px" }}>
+                            <label>
+                              <small>Left %</small>
+                              <input
+                                value={selectedHotspot.left || "50%"}
+                                onChange={(e) =>
+                                  updateHotspot(
+                                    currentSlide.id,
+                                    activeElement.id,
+                                    selectedHotspot.id,
+                                    { left: e.target.value }
+                                  )
+                                }
+                              />
+                            </label>
+                            <label>
+                              <small>Top %</small>
+                              <input
+                                value={selectedHotspot.top || "50%"}
+                                onChange={(e) =>
+                                  updateHotspot(
+                                    currentSlide.id,
+                                    activeElement.id,
+                                    selectedHotspot.id,
+                                    { top: e.target.value }
+                                  )
+                                }
+                              />
+                            </label>
+                          </div>
+                          <button
+                            type="button"
+                            className="btn secondary full"
+                            onClick={() => {
+                              removeHotspot(currentSlide.id, activeElement.id, selectedHotspot.id);
+                              setSelectedHotspotNum(null);
+                              notify(`Hotspot ${selectedHotspot.number} deleted`);
+                            }}
+                          >
+                            <Trash2 size={13} /> Delete hotspot
+                          </button>
+                        </div>
+                      )}
+
+                      <button
+                        className="btn secondary full"
+                        onClick={handleAddHotspotClick}
+                        type="button"
+                      >
+                        <Plus size={14} />
+                        Add interaction
+                      </button>
+                    </PropertySection>
+                  </>
+                )}
               </>
             )}
 
