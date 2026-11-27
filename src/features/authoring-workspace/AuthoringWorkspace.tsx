@@ -49,6 +49,7 @@ export function AuthoringWorkspace() {
     addSlide,
     updateSlide,
     deleteSlide,
+    reorderSlides,
     activeElementId,
     setActiveElementId,
     updateSlideElement,
@@ -57,6 +58,7 @@ export function AuthoringWorkspace() {
     addHotspot,
     updateHotspot,
     removeHotspot,
+    addMediaAsset,
     undo,
     redo,
     canUndo,
@@ -72,6 +74,7 @@ export function AuthoringWorkspace() {
   const [selectedHotspotNum, setSelectedHotspotNum] = useState<number | null>(1);
   const [canvasZoom, setCanvasZoom] = useState<CanvasZoom>("80%");
   const [activeTool, setActiveTool] = useState<CanvasTool>("pointer");
+  const [draggedSlideId, setDraggedSlideId] = useState<string | null>(null);
   const mediaInputRef = useRef<HTMLInputElement | null>(null);
 
   // Resolve current active slide
@@ -114,9 +117,25 @@ export function AuthoringWorkspace() {
       ],
     };
 
-  // Keyboard shortcut integration (Ctrl+Z, Ctrl+Y, Ctrl+S)
+  // Keyboard shortcut integration (Ctrl+Z, Ctrl+Y, Ctrl+S, Delete/Backspace, Escape)
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null;
+      const isTyping =
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable);
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveCurrentProject();
+        notify("Project saved successfully");
+        return;
+      }
+
+      if (isTyping) return;
+
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "z") {
         e.preventDefault();
         if (e.shiftKey) {
@@ -127,16 +146,31 @@ export function AuthoringWorkspace() {
       } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "y") {
         e.preventDefault();
         if (canRedo) redo();
-      } else if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
-        e.preventDefault();
-        saveCurrentProject();
-        notify("Project saved successfully");
+      } else if (e.key === "Delete" || e.key === "Backspace") {
+        if (activeElementId && currentSlide.elements.length > 0) {
+          e.preventDefault();
+          removeSlideElement(currentSlide.id, activeElementId);
+          notify("Selected element deleted");
+        }
+      } else if (e.key === "Escape") {
+        setSelectedHotspotNum(null);
       }
     };
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [canUndo, canRedo, undo, redo, saveCurrentProject, notify]);
+  }, [
+    canUndo,
+    canRedo,
+    undo,
+    redo,
+    saveCurrentProject,
+    notify,
+    activeElementId,
+    currentSlide.id,
+    currentSlide.elements.length,
+    removeSlideElement,
+  ]);
 
   const handleTitleChange = (newTitle: string) => {
     updateActiveProject({ title: newTitle });
@@ -180,19 +214,135 @@ export function AuthoringWorkspace() {
     };
     addSlideElement(currentSlide.id, newEl);
     setActiveTool("pointer");
-    notify("Image placeholder element added to slide");
+    notify("Image element added to slide");
+  };
+
+  const handleAddVideoElement = () => {
+    const newEl: SlideElement = {
+      id: `elem-${Date.now()}`,
+      type: "video",
+      name: "Interactive video",
+      mediaFile: "training-video.mp4",
+      mediaDuration: "01:00",
+      mediaSize: "12.0 MB",
+      altText: "Interactive instructional video",
+      showControls: true,
+      autoplay: false,
+      allowSeeking: true,
+      loopVideo: false,
+      width: 720,
+      cornerRadius: 12,
+      showShadow: true,
+      hotspots: [
+        { id: `hs-${Date.now()}`, number: 1, label: "Hotspot 1 · Key point", left: "30%", top: "45%" },
+      ],
+    };
+    addSlideElement(currentSlide.id, newEl);
+    setActiveTool("pointer");
+    notify("Interactive video added to slide");
   };
 
   const handleReplaceMedia = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-    const sizeMb = `${(file.size / (1024 * 1024)).toFixed(1)} MB`;
+    const asset = addMediaAsset(file);
     updateSlideElement(currentSlide.id, activeElement.id, {
       mediaFile: file.name,
-      mediaSize: sizeMb,
+      mediaSize: asset.size,
+      mediaUrl: asset.url,
     });
     notify(`Replaced media with ${file.name}`);
     e.target.value = "";
+  };
+
+  const handleCanvasFileDrop = (e: React.DragEvent) => {
+    if (!e.dataTransfer.files || e.dataTransfer.files.length === 0) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const file = e.dataTransfer.files[0];
+    const asset = addMediaAsset(file);
+    if (asset.type === "video") {
+      addSlideElement(currentSlide.id, {
+        id: `elem-${Date.now()}`,
+        type: "video",
+        name: file.name,
+        mediaFile: file.name,
+        mediaUrl: asset.url,
+        mediaSize: asset.size,
+        altText: `Video: ${file.name}`,
+        showControls: true,
+        width: 720,
+        cornerRadius: 12,
+        showShadow: true,
+        hotspots: [],
+      });
+      notify(`Added video “${file.name}” to slide`);
+    } else if (asset.type === "image") {
+      addSlideElement(currentSlide.id, {
+        id: `elem-${Date.now()}`,
+        type: "image",
+        name: file.name,
+        mediaFile: file.name,
+        mediaUrl: asset.url,
+        mediaSize: asset.size,
+        altText: `Image: ${file.name}`,
+        width: 520,
+        cornerRadius: 8,
+        showShadow: true,
+      });
+      notify(`Added image “${file.name}” to slide`);
+    }
+  };
+
+  const startResizeElement = (e: React.MouseEvent, el: SlideElement) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const startX = e.clientX;
+    const startWidth = el.width ?? 680;
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const delta = (moveEvent.clientX - startX) / zoomScale;
+      const nextWidth = Math.max(260, Math.min(920, Math.round(startWidth + delta)));
+      updateSlideElement(currentSlide.id, el.id, { width: nextWidth });
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+  };
+
+  const startDragHotspot = (
+    e: React.MouseEvent,
+    elId: string,
+    hsId: string,
+    hsNum: number,
+    hsLabel: string
+  ) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setSelectedHotspotNum(hsNum);
+    const container = (e.currentTarget as HTMLElement).parentElement;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+
+    const onMove = (moveEvent: MouseEvent) => {
+      const xPct = Math.max(5, Math.min(95, Math.round(((moveEvent.clientX - rect.left) / rect.width) * 100)));
+      const yPct = Math.max(5, Math.min(95, Math.round(((moveEvent.clientY - rect.top) / rect.height) * 100)));
+      updateHotspot(currentSlide.id, elId, hsId, { left: `${xPct}%`, top: `${yPct}%` });
+    };
+
+    const onUp = () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      notify(`Updated position for ${hsLabel}`);
+    };
+
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
   };
 
   const selectedHotspot = (activeElement.hotspots || []).find(
@@ -332,6 +482,16 @@ export function AuthoringWorkspace() {
             {slides.map((s, i) => (
               <button
                 key={s.id}
+                draggable
+                onDragStart={() => setDraggedSlideId(s.id)}
+                onDragOver={(e) => e.preventDefault()}
+                onDrop={() => {
+                  if (draggedSlideId && draggedSlideId !== s.id) {
+                    reorderSlides(draggedSlideId, s.id);
+                    notify(`Moved "${s.title}"`);
+                  }
+                  setDraggedSlideId(null);
+                }}
                 onClick={() => {
                   setActiveSlideId(s.id);
                   if (s.elements.length > 0) {
@@ -445,9 +605,9 @@ export function AuthoringWorkspace() {
                 className={`tool ${activeTool === "video" ? "active" : ""}`}
                 onClick={() => {
                   setActiveTool("video");
-                  notify("Interactive video element ready");
+                  handleAddVideoElement();
                 }}
-                title="Interactive video tool"
+                title="Add interactive video"
                 type="button"
               >
                 <Video size={16} />
@@ -502,7 +662,11 @@ export function AuthoringWorkspace() {
             </div>
           </div>
 
-          <div className="canvas-stage">
+          <div
+            className="canvas-stage"
+            onDragOver={(e) => e.preventDefault()}
+            onDrop={handleCanvasFileDrop}
+          >
             <div
               className="author-canvas"
               style={{
@@ -589,6 +753,8 @@ export function AuthoringWorkspace() {
                           onClick={() => setActiveElementId(el.id)}
                           style={{
                             position: "relative",
+                            width: el.width ? `${Math.min(el.width, 920)}px` : "100%",
+                            maxWidth: "100%",
                             padding: "14px 16px",
                             marginBottom: "12px",
                             borderRadius: `${el.cornerRadius ?? 8}px`,
@@ -619,6 +785,14 @@ export function AuthoringWorkspace() {
                               fontFamily: "inherit",
                             }}
                           />
+                          {isSelected && (
+                            <i
+                              className="handle br"
+                              onMouseDown={(e) => startResizeElement(e, el)}
+                              style={{ cursor: "nwse-resize" }}
+                              title="Drag to resize width"
+                            />
+                          )}
                         </div>
                       );
                     }
@@ -629,7 +803,10 @@ export function AuthoringWorkspace() {
                           key={el.id}
                           onClick={() => setActiveElementId(el.id)}
                           style={{
-                            padding: "18px",
+                            position: "relative",
+                            width: el.width ? `${Math.min(el.width, 920)}px` : "100%",
+                            maxWidth: "100%",
+                            padding: el.mediaUrl ? "8px" : "18px",
                             marginBottom: "12px",
                             borderRadius: `${el.cornerRadius ?? 8}px`,
                             border: isSelected ? "2px solid #2563eb" : "1px solid #e2e8f0",
@@ -641,15 +818,38 @@ export function AuthoringWorkspace() {
                             cursor: "pointer",
                           }}
                         >
-                          <ImagePlus size={22} color="#2563eb" />
-                          <div style={{ flex: 1 }}>
-                            <b style={{ fontSize: "13px", display: "block", color: "#0f172a" }}>
-                              {el.name} ({el.mediaFile || "image.png"})
-                            </b>
-                            <small style={{ fontSize: "12px", color: "#64748b" }}>
-                              {el.altText || "Click to edit image properties on the right panel"}
-                            </small>
-                          </div>
+                          {el.mediaUrl ? (
+                            <img
+                              src={el.mediaUrl}
+                              alt={el.altText || el.name}
+                              style={{
+                                width: "100%",
+                                maxHeight: "260px",
+                                objectFit: "contain",
+                                borderRadius: `${Math.max(0, (el.cornerRadius ?? 8) - 4)}px`,
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <ImagePlus size={22} color="#2563eb" />
+                              <div style={{ flex: 1 }}>
+                                <b style={{ fontSize: "13px", display: "block", color: "#0f172a" }}>
+                                  {el.name} ({el.mediaFile || "image.png"})
+                                </b>
+                                <small style={{ fontSize: "12px", color: "#64748b" }}>
+                                  {el.altText || "Click to edit image properties on the right panel"}
+                                </small>
+                              </div>
+                            </>
+                          )}
+                          {isSelected && (
+                            <i
+                              className="handle br"
+                              onMouseDown={(e) => startResizeElement(e, el)}
+                              style={{ cursor: "nwse-resize" }}
+                              title="Drag to resize width"
+                            />
+                          )}
                         </div>
                       );
                     }
@@ -661,6 +861,8 @@ export function AuthoringWorkspace() {
                         onClick={() => setActiveElementId(el.id)}
                         className={`interactive-video ${isSelected ? "selected-element" : ""}`}
                         style={{
+                          width: el.width ? `${Math.min(el.width, 920)}px` : undefined,
+                          maxWidth: "100%",
                           borderRadius: `${el.cornerRadius ?? 12}px`,
                           boxShadow: el.showShadow ? "0 20px 40px rgba(0,0,0,0.4)" : "none",
                           border: isSelected
@@ -672,9 +874,27 @@ export function AuthoringWorkspace() {
                         }}
                       >
                         <div className="video-scene">
-                          <div className="scene-desk" />
-                          <div className="scene-window" />
-                          <div className="scene-person" />
+                          {el.mediaUrl ? (
+                            <video
+                              src={el.mediaUrl}
+                              controls={el.showControls ?? true}
+                              autoPlay={el.autoplay ?? false}
+                              loop={el.loopVideo ?? false}
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                                position: "relative",
+                                zIndex: 1,
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <div className="scene-desk" />
+                              <div className="scene-window" />
+                              <div className="scene-person" />
+                            </>
+                          )}
 
                           {(el.hotspots || []).map((hs, idx) => {
                             const hotspotClass =
@@ -685,17 +905,17 @@ export function AuthoringWorkspace() {
                                 className={`hotspot ${hotspotClass} ${
                                   selectedHotspotNum === hs.number ? "active" : ""
                                 }`}
-                                style={
-                                  idx > 2
+                                style={{
+                                  ...(hs.left || hs.top
                                     ? { left: hs.left || "45%", top: hs.top || "45%" }
-                                    : undefined
-                                }
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setActiveElementId(el.id);
-                                  handleHotspotClick(hs.number, hs.label);
+                                    : {}),
+                                  zIndex: 5,
+                                  cursor: "grab",
                                 }}
-                                title={hs.label}
+                                onMouseDown={(e) =>
+                                  startDragHotspot(e, el.id, hs.id, hs.number, hs.label)
+                                }
+                                title={`${hs.label} (drag to move)`}
                                 type="button"
                               >
                                 {hs.number}
@@ -704,20 +924,22 @@ export function AuthoringWorkspace() {
                           })}
                         </div>
 
-                        <button
-                          className="play-button"
-                          onClick={() => setPlaying(!playing)}
-                          type="button"
-                          aria-label={playing ? "Pause" : "Play"}
-                        >
-                          {playing ? (
-                            <Pause size={22} fill="currentColor" />
-                          ) : (
-                            <Play size={22} fill="currentColor" />
-                          )}
-                        </button>
+                        {!el.mediaUrl && (
+                          <button
+                            className="play-button"
+                            onClick={() => setPlaying(!playing)}
+                            type="button"
+                            aria-label={playing ? "Pause" : "Play"}
+                          >
+                            {playing ? (
+                              <Pause size={22} fill="currentColor" />
+                            ) : (
+                              <Play size={22} fill="currentColor" />
+                            )}
+                          </button>
+                        )}
 
-                        {(el.showControls ?? true) && (
+                        {!el.mediaUrl && (el.showControls ?? true) && (
                           <div className="video-controls">
                             <span>{playing ? "00:18" : "00:00"}</span>
                             <div>
@@ -744,10 +966,10 @@ export function AuthoringWorkspace() {
                         {isSelected && (
                           <>
                             <div className="selection-label">{el.name || "Interactive video"}</div>
-                            <i className="handle tl" />
-                            <i className="handle tr" />
-                            <i className="handle bl" />
-                            <i className="handle br" />
+                            <i className="handle tl" onMouseDown={(e) => startResizeElement(e, el)} />
+                            <i className="handle tr" onMouseDown={(e) => startResizeElement(e, el)} />
+                            <i className="handle bl" onMouseDown={(e) => startResizeElement(e, el)} />
+                            <i className="handle br" onMouseDown={(e) => startResizeElement(e, el)} title="Drag to resize" />
                           </>
                         )}
                       </div>

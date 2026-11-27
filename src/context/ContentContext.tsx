@@ -38,6 +38,7 @@ interface ContentContextValue {
   addSlide: () => void;
   updateSlide: (id: string, updates: Partial<Slide>) => void;
   deleteSlide: (id: string) => void;
+  reorderSlides: (fromId: string, toId: string) => void;
   updateSlideElement: (slideId: string, elementId: string, updates: Partial<SlideElement>) => void;
   addSlideElement: (slideId: string, element: SlideElement) => void;
   removeSlideElement: (slideId: string, elementId: string) => void;
@@ -59,7 +60,9 @@ interface ContentContextValue {
   deleteQuestion: (id: number) => void;
 
   // Media & Integrations
-  addMediaAsset: (file: File) => void;
+  addMediaAsset: (file: File) => MediaAsset;
+  updateMediaAsset: (id: string, updates: Partial<MediaAsset>) => void;
+  deleteMediaAsset: (id: string) => void;
   toggleLMSConnection: (id: string) => void;
 }
 
@@ -230,11 +233,24 @@ export function ContentProvider({ children }: { children: ReactNode }) {
   const deleteSlide = (id: string) => {
     if (slides.length <= 1) return;
     pushHistory(slides);
-    const filtered = slides.filter((s) => s.id !== id);
+    const filtered = slides.filter((s) => s.id !== id).map((s, idx) => ({ ...s, num: idx + 1 }));
     setSlides(filtered);
     if (activeSlideId === id) {
       setActiveSlideId(filtered[0].id);
     }
+    triggerAutosave();
+  };
+
+  const reorderSlides = (fromId: string, toId: string) => {
+    if (fromId === toId) return;
+    const fromIdx = slides.findIndex((s) => s.id === fromId);
+    const toIdx = slides.findIndex((s) => s.id === toId);
+    if (fromIdx < 0 || toIdx < 0) return;
+    pushHistory(slides);
+    const next = [...slides];
+    const [moved] = next.splice(fromIdx, 1);
+    next.splice(toIdx, 0, moved);
+    setSlides(next.map((s, idx) => ({ ...s, num: idx + 1 })));
     triggerAutosave();
   };
 
@@ -405,9 +421,10 @@ export function ContentProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const addMediaAsset = (file: File) => {
+  const addMediaAsset = (file: File): MediaAsset => {
+    const objectUrl = typeof URL !== "undefined" && URL.createObjectURL ? URL.createObjectURL(file) : undefined;
     const newAsset: MediaAsset = {
-      id: `m-${Date.now()}`,
+      id: `m-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
       name: file.name,
       type: file.type.includes("video")
         ? "video"
@@ -416,10 +433,20 @@ export function ContentProvider({ children }: { children: ReactNode }) {
           : file.type.includes("audio")
             ? "audio"
             : "document",
-      size: `${(file.size / (1024 * 1024)).toFixed(1)} MB`,
+      size: `${(file.size / (1024 * 1024)).toFixed(2)} MB`,
       uploadedAt: "Just now",
+      url: objectUrl,
     };
     setMediaItems((prev) => [newAsset, ...prev]);
+    return newAsset;
+  };
+
+  const updateMediaAsset = (id: string, updates: Partial<MediaAsset>) => {
+    setMediaItems((prev) => prev.map((m) => (m.id === id ? { ...m, ...updates } : m)));
+  };
+
+  const deleteMediaAsset = (id: string) => {
+    setMediaItems((prev) => prev.filter((m) => m.id !== id));
   };
 
   const toggleLMSConnection = (id: string) => {
@@ -467,6 +494,7 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         addSlide,
         updateSlide,
         deleteSlide,
+        reorderSlides,
         updateSlideElement,
         addSlideElement,
         removeSlideElement,
@@ -481,6 +509,8 @@ export function ContentProvider({ children }: { children: ReactNode }) {
         updateQuestion,
         deleteQuestion,
         addMediaAsset,
+        updateMediaAsset,
+        deleteMediaAsset,
         toggleLMSConnection,
       }}
     >

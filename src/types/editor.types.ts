@@ -13,6 +13,7 @@ export interface SlideElement {
   name: string;
   textContent?: string;
   mediaFile?: string;
+  mediaUrl?: string;
   mediaDuration?: string;
   mediaSize?: string;
   altText?: string;
